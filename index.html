@@ -7,7 +7,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
     <head>
         <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-        <title>Untitled Document</title>
+        <title>VolumeNavigator</title>
 
         <script src="js/dat.gui.min.js"></script>
         <script src="js/three.js"></script>
@@ -27,12 +27,14 @@
                 background-color: #FFF;
                 width: 800px;
 				height: 600px;
+                /*
                 margin: auto;
                 position: absolute;
                 top: 0;
                 bottom: 0;
                 left: 0;
                 right: 0;
+                */
             }
 
 
@@ -44,10 +46,12 @@
 
 
         <p>
-            purple: the minc file bounding box <br />
-            blue: the relevant data (aka. brain) bounding box within the minc <br />
-            red: the plane used to generate obliques <br />
+            <span style="color:#c489ed">purple box</span>: the minc file bounding box <br />
+            <span style="color:#77AAFF">blue box</span>: the relevant data (aka. brain) bounding box within the minc <br />
+            <span style="color:#F88">red square</span>: the plane used to generate obliques <br />
             <br />
+            <span style="color:#F00">X axis in red</span>, <span style="color:#0C0">Y axis in green</span> and <span style="color:#00F">Z axis in blue</span>.
+            <br /><br />
             Note: the size and position of the boxes have to be computed when the minc file is loaded.<br />
             Note 2: you can, of course, play around with the controls on your upper right.
 
@@ -65,9 +69,9 @@
             }
 
             var innerBoxOptions = {
-                xSize: 120,
-                ySize: 110,
-                zSize: 80,
+                xSize: 150,
+                ySize: 210,
+                zSize: 280,
                 xOrigin: 100,
                 yOrigin: 30,
                 zOrigin: 45

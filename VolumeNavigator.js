@@ -27,8 +27,8 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
         this.outerBoxSize.zSize * this.outerBoxSize.zSize);
 
     this.sceneOptions = {
-        width: 800,
-        height: 600,
+        width: this.domContainer.clientWidth,
+        height: this.domContainer.clientHeight,
         viewAngle: 45,
         near: 0.1,
         far: this.boxDiagonal * 20,
@@ -56,12 +56,17 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
     // initialize the UI (dat.gui)
     this.initGui();
 
+    // just toinitialize in order to update dat.gui field
+    this.updatePlaneEquation();
+
     // animate and update
     this.animate();
 }
 
 
-
+/*
+    Create and initialize all the necessary to build a THREE scene
+*/
 VolumeNavigator.prototype.init = function(){
     // THREE.JS rendered
     this.renderer = new THREE.WebGLRenderer({
@@ -185,6 +190,10 @@ VolumeNavigator.prototype.buildOuterBox = function(){
 }
 
 
+/*
+    Build the plane out of 2 triangles.
+    We will then be able to tilt and translate this plane.
+*/
 VolumeNavigator.prototype.buildPlane = function(){
 
     this.plane = {};
@@ -265,9 +274,11 @@ VolumeNavigator.prototype.animate = function(){
 }
 
 
-
+/*
+    Adds the settings available in dat.gui
+*/
 VolumeNavigator.prototype.initGui = function(){
-    this.gui = new dat.GUI();
+    this.gui = new dat.GUI({ width: 400 });
 
     this.guiValue = {};
 
@@ -290,7 +301,13 @@ VolumeNavigator.prototype.initGui = function(){
         zRot  : 0
     };
 
+    this.guiValue.literalPlaneEquation = {
+        literal: "hello"
+    }
+
     var that = this;
+
+    this.gui.add(this.guiValue.literalPlaneEquation, 'literal').name("Plane equation").listen();
 
     // TRANSLATION
     var planeTransFolder = this.gui.addFolder('Plane translation');
@@ -433,8 +450,11 @@ VolumeNavigator.prototype.initGui = function(){
 }
 
 
+/*
+    Updates the plane equation, based on three points of the plane
+*/
 VolumeNavigator.prototype.updatePlaneEquation = function(){
-    console.log(this.plane.geometry);
+
     //this.planeEquation
     var P = this.plane.geometry.vertices[0];
     var Q = this.plane.geometry.vertices[1];
@@ -460,14 +480,19 @@ VolumeNavigator.prototype.updatePlaneEquation = function(){
 
     eq.normalize();
 
-    var roundFactor = 1000;
+    var roundFactor = 10000;
 
     this.planeEquation.a = Math.round(eq.x * roundFactor) / roundFactor;
     this.planeEquation.b = Math.round(eq.y * roundFactor) / roundFactor;
     this.planeEquation.c = Math.round(eq.z * roundFactor) / roundFactor;
     this.planeEquation.d = Math.round(eq.w * roundFactor) / roundFactor;
 
-    console.log(this.planeEquation);
+    this.guiValue.literalPlaneEquation.literal =
+        this.planeEquation.a + "x + " +
+        this.planeEquation.b + "y + " +
+        this.planeEquation.c + "z + " +
+        this.planeEquation.d + " = 0";
+
 }
 
 
