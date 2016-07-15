@@ -1,0 +1,84 @@
+<!--
+    From the tutorial:
+    https://aerotwist.com/tutorials/getting-started-with-three-js/
+-->
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <title>Untitled Document</title>
+
+        <script src="js/dat.gui.min.js"></script>
+        <script src="js/three.js"></script>
+        <script src="js/OrbitControls.js"></script>
+        <script src="VolumeNavigator.js"></script>
+
+        <style>
+            body{
+                margin: none;
+                background-color: #FFF;
+
+                font-family: sans-serif;
+                color: #AAA;
+            }
+
+            #container{
+                background-color: #FFF;
+                width: 800px;
+				height: 600px;
+                margin: auto;
+                position: absolute;
+                top: 0;
+                bottom: 0;
+                left: 0;
+                right: 0;
+            }
+
+
+        </style>
+
+    </head>
+
+    <body>
+
+
+        <p>
+            purple: the minc file bounding box <br />
+            blue: the relevant data (aka. brain) bounding box within the minc <br />
+            red: the plane used to generate obliques <br />
+            <br />
+            Note: the size and position of the boxes have to be computed when the minc file is loaded.<br />
+            Note 2: you can, of course, play around with the controls on your upper right.
+
+        </p>
+
+        <div id="container"></div>
+
+
+        <script type="text/javascript">
+
+            var outerBoxOptions = {
+                xSize: 330,
+                ySize: 350,
+                zSize: 385
+            }
+
+            var innerBoxOptions = {
+                xSize: 120,
+                ySize: 110,
+                zSize: 80,
+                xOrigin: 100,
+                yOrigin: 30,
+                zOrigin: 45
+            }
+
+            var vn = new VolumeNavigator(outerBoxOptions, innerBoxOptions, "container");
+
+        </script>
+
+
+
+
+    </body>
+</html>
