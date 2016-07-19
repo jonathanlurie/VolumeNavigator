@@ -62,12 +62,14 @@
 
         <script type="text/javascript">
 
+            // the outer box size
             var outerBoxOptions = {
                 xSize: 330,
                 ySize: 350,
                 zSize: 385
             }
 
+            // the inner box size and offset
             var innerBoxOptions = {
                 xSize: 150,
                 ySize: 210,
@@ -77,7 +79,19 @@
                 zOrigin: 45
             }
 
+            // creating a VolumeNavigator instance
             var vn = new VolumeNavigator(outerBoxOptions, innerBoxOptions, "container");
+
+            // optional: this callback is called when a slider is moving (mouse down)
+            vn.setOnChangeCallback(function(){
+              console.log("change!");
+            });
+
+            // optional: this callback is called when a slider is released (mouse up)
+            vn.setOnFinishChangeCallback(function(){
+              console.log("change finish!");
+            });
+
 
         </script>
 

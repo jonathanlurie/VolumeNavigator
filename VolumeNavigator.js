@@ -44,6 +44,9 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
         d: 0
     }
 
+    this.onChangeCallback = null;
+    this.onFinishChangeCallback = null;
+
     // initialize THREE js elements necessary to create and render a scene
     this.init();
 
@@ -63,6 +66,21 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
     this.animate();
 }
 
+
+/*
+
+*/
+VolumeNavigator.prototype.setOnChangeCallback = function(cb){
+  this.onChangeCallback = cb;
+}
+
+
+/*
+
+*/
+VolumeNavigator.prototype.setOnFinishChangeCallback = function(cb){
+  this.onFinishChangeCallback = cb;
+}
 
 /*
     Create and initialize all the necessary to build a THREE scene
@@ -305,9 +323,19 @@ VolumeNavigator.prototype.initGui = function(){
         literal: "hello"
     }
 
+    this.guiValue.normalVector = {
+        literal: "hello"
+    }
+
+    this.guiValue.point = {
+        literal: "hello"
+    }
+
     var that = this;
 
-    this.gui.add(this.guiValue.literalPlaneEquation, 'literal').name("Plane equation").listen();
+    //this.gui.add(this.guiValue.literalPlaneEquation, 'literal').name("Plane equation").listen();
+    this.gui.add(this.guiValue.normalVector, 'literal').name("Normal vector").listen();
+    this.gui.add(this.guiValue.point, 'literal').name("Point").listen();
 
     // TRANSLATION
     var planeTransFolder = this.gui.addFolder('Plane translation');
@@ -322,6 +350,18 @@ VolumeNavigator.prototype.initGui = function(){
             that.guiValue.previous.xTrans = value;
 
             that.updatePlaneEquation();
+
+            // calling the callback if defined
+            if(that.onChangeCallback){
+              that.onChangeCallback();
+            }
+
+        })
+        .onFinishChange(function(value) {
+          // calling the callback if defined
+          if(that.onFinishChangeCallback){
+            that.onFinishChangeCallback();
+          }
         });
 
     planeTransFolder.add(this.guiValue.current, "yTrans", -this.boxDiagonal*1., this.boxDiagonal*1., 1).name("y")
@@ -335,6 +375,17 @@ VolumeNavigator.prototype.initGui = function(){
             that.guiValue.previous.yTrans = value;
 
             that.updatePlaneEquation();
+
+            // calling the callback if defined
+            if(that.onChangeCallback){
+              that.onChangeCallback();
+            }
+        })
+        .onFinishChange(function(value) {
+          // calling the callback if defined
+          if(that.onFinishChangeCallback){
+            that.onFinishChangeCallback();
+          }
         });
 
     planeTransFolder.add(this.guiValue.current, "zTrans", -this.boxDiagonal*1., this.boxDiagonal*1., 1).name("z")
@@ -348,6 +399,17 @@ VolumeNavigator.prototype.initGui = function(){
             that.guiValue.previous.zTrans = value;
 
             that.updatePlaneEquation();
+
+            // calling the callback if defined
+            if(that.onChangeCallback){
+              that.onChangeCallback();
+            }
+        })
+        .onFinishChange(function(value) {
+          // calling the callback if defined
+          if(that.onFinishChangeCallback){
+            that.onFinishChangeCallback();
+          }
         });
 
 
@@ -381,6 +443,17 @@ VolumeNavigator.prototype.initGui = function(){
             that.guiValue.previous.xRot = value;
 
             that.updatePlaneEquation();
+
+            // calling the callback if defined
+            if(that.onChangeCallback){
+              that.onChangeCallback();
+            }
+        })
+        .onFinishChange(function(value) {
+          // calling the callback if defined
+          if(that.onFinishChangeCallback){
+            that.onFinishChangeCallback();
+          }
         });
 
     planeRotationFolder.add(this.guiValue.current, "yRot", -180, 180, 1).name("y")
@@ -411,6 +484,17 @@ VolumeNavigator.prototype.initGui = function(){
             that.guiValue.previous.yRot = value;
 
             that.updatePlaneEquation();
+
+            // calling the callback if defined
+            if(that.onChangeCallback){
+              that.onChangeCallback();
+            }
+        })
+        .onFinishChange(function(value) {
+          // calling the callback if defined
+          if(that.onFinishChangeCallback){
+            that.onFinishChangeCallback();
+          }
         });
 
     planeRotationFolder.add(this.guiValue.current, "zRot", -180, 180, 1).name("z")
@@ -442,6 +526,17 @@ VolumeNavigator.prototype.initGui = function(){
             that.guiValue.previous.zRot = value;
 
             that.updatePlaneEquation();
+
+            // calling the callback if defined
+            if(that.onChangeCallback){
+              that.onChangeCallback();
+            }
+        })
+        .onFinishChange(function(value) {
+          // calling the callback if defined
+          if(that.onFinishChangeCallback){
+            that.onFinishChangeCallback();
+          }
         });
 
 
@@ -493,6 +588,28 @@ VolumeNavigator.prototype.updatePlaneEquation = function(){
         this.planeEquation.c + "z + " +
         this.planeEquation.d + " = 0";
 
+
+    // Display/refresh the plane normal and the point
+
+    var n = this.getPlaneNormal();
+    var p = this.getPlanePoint();
+
+    var normalRounded = {
+      x: Math.round(n[0] * roundFactor) / roundFactor,
+      y: Math.round(n[1] * roundFactor) / roundFactor,
+      z: Math.round(n[2] * roundFactor) / roundFactor
+    };
+
+
+    var pointRounded = {
+      x: Math.round(p[0] * roundFactor) / roundFactor,
+      y: Math.round(p[1] * roundFactor) / roundFactor,
+      z: Math.round(p[2] * roundFactor) / roundFactor
+    };
+
+    this.guiValue.normalVector.literal = "(" + normalRounded.x + " ; " + normalRounded.y + " ; " + normalRounded.z + ")";
+
+    this.guiValue.point.literal = "(" + pointRounded.x + " ; " + pointRounded.y + " ; " + pointRounded.z + ")";
 }
 
 
@@ -501,4 +618,39 @@ VolumeNavigator.prototype.updatePlaneEquation = function(){
 */
 VolumeNavigator.prototype.getPlaneEquation = function(){
     return this.planeEquation;
+}
+
+
+/*
+  get the normal vector of the plane as a array [x, y, z]
+*/
+VolumeNavigator.prototype.getPlaneNormal = function(){
+  var normal = new THREE.Vector3();
+  normal.copy(this.plane.geometry.faces[0].normal);
+  normal.normalize();
+
+  return [normal.x, normal.y, normal.z];
+}
+
+
+/*
+  Get the center point of the plane as an array [x, y, z]
+*/
+VolumeNavigator.prototype.getPlanePoint = function(){
+  return [
+      (this.plane.geometry.vertices[0].x +
+      this.plane.geometry.vertices[1].x +
+      this.plane.geometry.vertices[2].x +
+      this.plane.geometry.vertices[3].x) / 4. ,
+
+      (this.plane.geometry.vertices[0].y +
+      this.plane.geometry.vertices[1].y +
+      this.plane.geometry.vertices[2].y +
+      this.plane.geometry.vertices[3].y) / 4. ,
+
+      (this.plane.geometry.vertices[0].z +
+      this.plane.geometry.vertices[1].z +
+      this.plane.geometry.vertices[2].z +
+      this.plane.geometry.vertices[3].z)  / 4.
+  ];
 }
