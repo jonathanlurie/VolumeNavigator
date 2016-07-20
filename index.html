@@ -92,6 +92,11 @@
               console.log("change finish!");
             });
 
+            // optional: add a button at the bottom of dat.gui with its associated callback.
+            // originally for caching the current slice.
+            vn.addGuiButton("Cache current slice", function(){
+              console.log("This is quite a callback.");
+            });
 
         </script>
 

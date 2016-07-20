@@ -44,8 +44,12 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
         d: 0
     }
 
+    // callback when a slider is moved (still mouse down)
     this.onChangeCallback = null;
+
+    // callback when a slider has finished to slide (mouse up)
     this.onFinishChangeCallback = null;
+
 
     // initialize THREE js elements necessary to create and render a scene
     this.init();
@@ -333,9 +337,10 @@ VolumeNavigator.prototype.initGui = function(){
 
     var that = this;
 
-    //this.gui.add(this.guiValue.literalPlaneEquation, 'literal').name("Plane equation").listen();
-    this.gui.add(this.guiValue.normalVector, 'literal').name("Normal vector").listen();
-    this.gui.add(this.guiValue.point, 'literal').name("Point").listen();
+    var planeInfoFolder = this.gui.addFolder('Plane information');
+    planeInfoFolder.add(this.guiValue.literalPlaneEquation, 'literal').name("Plane equation").listen();
+    planeInfoFolder.add(this.guiValue.normalVector, 'literal').name("Normal vector").listen();
+    planeInfoFolder.add(this.guiValue.point, 'literal').name("Point").listen();
 
     // TRANSLATION
     var planeTransFolder = this.gui.addFolder('Plane translation');
@@ -541,7 +546,35 @@ VolumeNavigator.prototype.initGui = function(){
 
 
 
+}
 
+
+VolumeNavigator.prototype.addGuiButton = function(name, callback){
+  // function related to caching data
+  this.guiValue.cachedOblique = {
+    name: name,
+
+    cacheCurrent: callback,
+
+    speed: 'Stopppped'
+  };
+
+  this.gui.add(this.guiValue.cachedOblique, 'cacheCurrent').name(this.guiValue.cachedOblique.name).listen();
+
+  /*
+  this.gui.add(this.guiValue.cachedOblique, 'speed',  { Stopppped: 0, Slow: 0.1, Fast: 5 })
+    .onFinishChange(function(value) {
+      // Fires when a controller loses focus.
+      console.log("The new value is " + value);
+    });
+  */
+
+
+  this.gui.add(this.guiValue.cachedOblique, 'speed',  ["hello", "good morning", "ciao"])
+    .onFinishChange(function(value) {
+      // Fires when a controller loses focus.
+      console.log("The new value is " + value);
+    });
 }
 
 
