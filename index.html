@@ -1,107 +1,149 @@
 <!--
-    From the tutorial:
-    https://aerotwist.com/tutorials/getting-started-with-three-js/
+From the tutorial:
+https://aerotwist.com/tutorials/getting-started-with-three-js/
 -->
 
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
-    <head>
-        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-        <title>VolumeNavigator</title>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <title>VolumeNavigator</title>
 
-        <script src="js-lib/dat.gui.min.js"></script>
-        <script src="js-lib/three.js"></script>
-        <script src="js-lib/OrbitControls.js"></script>
-        <script src="js/VolumeNavigator.js"></script>
+  <script src="js-lib/dat.gui.min.js"></script>
+  <script src="js-lib/three.js"></script>
+  <script src="js-lib/OrbitControls.js"></script>
+  <script src="js/VolumeNavigator.js"></script>
 
-        <style>
-            body{
-                margin: none;
-                background-color: #FFF;
+  <style>
+  body{
+    margin: none;
+    background-color: #FFF;
 
-                font-family: sans-serif;
-                color: #AAA;
-            }
+    font-family: sans-serif;
+    color: #AAA;
+  }
 
-            #container{
-                background-color: #FFF;
-                width: 800px;
-				height: 600px;
-                /*
-                margin: auto;
-                position: absolute;
-                top: 0;
-                bottom: 0;
-                left: 0;
-                right: 0;
-                */
-            }
+  #container{
+    background-color: #FFF;
+    width: 800px;
+    height: 600px;
+    /*
+    margin: auto;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    */
+  }
 
+  .dg select{
+    /*
+    border: none;
+    */
+    color: #FFF;
 
-        </style>
+    border: 1px solid #111;
+    outline: 0px;
+    background: transparent;
+    width: 220px;
+    padding: 0px 0px 0px 0px;
+    font-size: 13px;
+    border: 1px solid #333;
+    height: 19px;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background: url(arrow.png) 96% / 10% no-repeat;
+  }
 
-    </head>
-
-    <body>
-
-
-        <p>
-            <span style="color:#c489ed">purple box</span>: the minc file bounding box <br />
-            <span style="color:#77AAFF">blue box</span>: the relevant data (aka. brain) bounding box within the minc <br />
-            <span style="color:#F88">red square</span>: the plane used to generate obliques <br />
-            <br />
-            <span style="color:#F00">X axis in red</span>, <span style="color:#0C0">Y axis in green</span> and <span style="color:#00F">Z axis in blue</span>.
-            <br /><br />
-            Note: the size and position of the boxes have to be computed when the minc file is loaded.<br />
-            Note 2: you can, of course, play around with the controls on your upper right.
-
-        </p>
-
-        <div id="container"></div>
-
-
-        <script type="text/javascript">
-
-            // the outer box size
-            var outerBoxOptions = {
-                xSize: 330,
-                ySize: 350,
-                zSize: 385
-            }
-
-            // the inner box size and offset
-            var innerBoxOptions = {
-                xSize: 150,
-                ySize: 210,
-                zSize: 280,
-                xOrigin: 100,
-                yOrigin: 30,
-                zOrigin: 45
-            }
-
-            // creating a VolumeNavigator instance
-            var vn = new VolumeNavigator(outerBoxOptions, innerBoxOptions, "container");
-
-            // optional: this callback is called when a slider is moving (mouse down)
-            vn.setOnChangeCallback(function(){
-              console.log("change!");
-            });
-
-            // optional: this callback is called when a slider is released (mouse up)
-            vn.setOnFinishChangeCallback(function(){
-              console.log("change finish!");
-            });
-
-            // optional: add a button at the bottom of dat.gui with its associated callback.
-            // originally for caching the current slice.
-            vn.addGuiButton("Cache current slice", function(){
-              console.log("This is quite a callback.");
-            });
-
-        </script>
+  .dg select:focus {
+    outline: none;
+  }
 
 
+  </style>
+
+</head>
+
+<body>
 
 
-    </body>
+  <p>
+    <span style="color:#c489ed">purple box</span>: the minc file bounding box <br />
+    <span style="color:#77AAFF">blue box</span>: the relevant data (aka. brain) bounding box within the minc <br />
+    <span style="color:#F88">red square</span>: the plane used to generate obliques <br />
+    <br />
+    <span style="color:#F00">X axis in red</span>, <span style="color:#0C0">Y axis in green</span> and <span style="color:#00F">Z axis in blue</span>.
+    <br /><br />
+    Note: the size and position of the boxes have to be computed when the minc file is loaded.<br />
+    Note 2: you can, of course, play around with the controls on your upper right.
+
+  </p>
+
+  <select><option value="10">hello</option><option value="20">bonjour</option><option value="30">ciao</option></select>
+
+  <div id="container"></div>
+
+
+  <script type="text/javascript">
+
+  // the outer box size
+  var outerBoxOptions = {
+    xSize: 330,
+    ySize: 350,
+    zSize: 385
+  }
+
+  // the inner box size and offset
+  var innerBoxOptions = {
+    xSize: 150,
+    ySize: 210,
+    zSize: 280,
+    xOrigin: 100,
+    yOrigin: 30,
+    zOrigin: 45
+  }
+
+  // creating a VolumeNavigator instance
+  var vn = new VolumeNavigator(outerBoxOptions, innerBoxOptions, "container");
+
+  // optional: this callback is called when a slider is moving (mouse down)
+  vn.setOnChangeCallback(function(){
+    console.log("change!");
+  });
+
+  // optional: this callback is called when a slider is released (mouse up)
+  vn.setOnFinishChangeCallback(function(){
+    console.log("change finish!");
+  });
+
+  // optional: add a button at the bottom of dat.gui with its associated callback.
+  // originally for caching the current slice.
+  vn.buildGuiButton("Cache current slice", function(){
+    console.log("This is quite a callback.");
+  });
+
+
+  // optional: add a list of choices with a callback.
+  // originally to display cached sliced
+  vn.buildGuiList(
+    "The list",
+    {
+      hello: 10,
+      bonjour: 20,
+      ciao: 30
+    },
+    function(value){
+      console.log("this is the callback, value: " + value);
+    }
+  );
+
+
+  </script>
+
+
+
+
+</body>
 </html>

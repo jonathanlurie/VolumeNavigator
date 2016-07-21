@@ -335,6 +335,10 @@ VolumeNavigator.prototype.initGui = function(){
         literal: "hello"
     }
 
+    // used later but better to declare here to avoid resetting
+    this.guiValue.customButton = {};
+    this.guiValue.customList = {};
+
     var that = this;
 
     var planeInfoFolder = this.gui.addFolder('Plane information');
@@ -549,32 +553,48 @@ VolumeNavigator.prototype.initGui = function(){
 }
 
 
-VolumeNavigator.prototype.addGuiButton = function(name, callback){
-  // function related to caching data
-  this.guiValue.cachedOblique = {
-    name: name,
+/*
+  Add a button with its callback
+*/
+VolumeNavigator.prototype.buildGuiButton = function(name, callback){
+  this.guiValue.customButton["name"] = name;
+  this.guiValue.customButton["callback"] = callback;
 
-    cacheCurrent: callback,
-
-    speed: 'Stopppped'
-  };
-
-  this.gui.add(this.guiValue.cachedOblique, 'cacheCurrent').name(this.guiValue.cachedOblique.name).listen();
-
-  /*
-  this.gui.add(this.guiValue.cachedOblique, 'speed',  { Stopppped: 0, Slow: 0.1, Fast: 5 })
-    .onFinishChange(function(value) {
-      // Fires when a controller loses focus.
-      console.log("The new value is " + value);
-    });
-  */
+  this.gui.add(this.guiValue.customButton, 'callback').name(this.guiValue.customButton.name);
+}
 
 
-  this.gui.add(this.guiValue.cachedOblique, 'speed',  ["hello", "good morning", "ciao"])
-    .onFinishChange(function(value) {
-      // Fires when a controller loses focus.
-      console.log("The new value is " + value);
-    });
+/*
+  Build the list of choice with a callback.
+  args:
+    listName: string - the name that will be displayed
+    list: Array or Object (map) - the choices
+    callback: function - function to call when a choice is done. It takes the value as argument.
+*/
+VolumeNavigator.prototype.buildGuiList = function(listName, list, callback){
+
+
+  if(! (typeof this.guiValue.customList["controller"] === "undefined") ){
+    // remove the current elem
+    this.gui.remove(this.guiValue.customList["controller"]);
+    this.guiValue.customList = {};
+    // Works because the list is the last element of gui
+    this.gui.__controllers[this.gui.__controllers.length - 1].remove();
+
+  }
+
+  this.guiValue.customList["list"] = list;
+  this.guiValue.customList["listName"] = listName;
+  this.guiValue.customList["callback"] = callback;
+
+  this.guiValue.customList["controller"] = this.gui.add(
+    this.guiValue.customList,
+    "listName",
+    this.guiValue.customList["list"]
+  )
+  .name(this.guiValue.customList["listName"]) // necessay, I think there is a bug in using the name
+  .onFinishChange(callback);
+
 }
 
 
