@@ -35,7 +35,6 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
 
     };
 
-
     // plane equation as (ax + by + cz + d = 0)
     this.planeEquation = {
         a: 0,
@@ -427,7 +426,13 @@ VolumeNavigator.prototype.initGui = function(){
     planeRotationFolder.add(this.guiValue.current, "xRot", -180, 180).name("x")
         .onChange(function(value) {
             dif = that.guiValue.previous.xRot - value;
+
+            that.rotatePlaneDegree(dif, 0, 0);
+
+            /*
             var rad = dif * Math.PI / 180.
+
+
 
             var currentCenter = {
                 x: that.plane.geometry.boundingSphere.center.x,
@@ -448,10 +453,11 @@ VolumeNavigator.prototype.initGui = function(){
                 currentCenter.y,
                 currentCenter.z
             );
+            */
 
             that.guiValue.previous.xRot = value;
 
-            that.updatePlaneEquation();
+            //that.updatePlaneEquation();
 
             // calling the callback if defined
             if(that.onChangeCallback){
@@ -468,6 +474,10 @@ VolumeNavigator.prototype.initGui = function(){
     planeRotationFolder.add(this.guiValue.current, "yRot", -180, 180, 1).name("y")
         .onChange(function(value) {
             dif = that.guiValue.previous.yRot - value;
+
+            that.rotatePlaneDegree(0, dif, 0);
+
+            /*
             var rad = dif * Math.PI / 180.
 
             var currentCenter = {
@@ -489,10 +499,11 @@ VolumeNavigator.prototype.initGui = function(){
                 currentCenter.y,
                 currentCenter.z
             );
+            */
 
             that.guiValue.previous.yRot = value;
 
-            that.updatePlaneEquation();
+            //that.updatePlaneEquation();
 
             // calling the callback if defined
             if(that.onChangeCallback){
@@ -509,6 +520,10 @@ VolumeNavigator.prototype.initGui = function(){
     planeRotationFolder.add(this.guiValue.current, "zRot", -180, 180, 1).name("z")
         .onChange(function(value) {
             dif = that.guiValue.previous.zRot - value;
+
+            that.rotatePlaneDegree(0, 0, dif);
+
+            /*
             var rad = dif * Math.PI / 180.
 
 
@@ -531,10 +546,11 @@ VolumeNavigator.prototype.initGui = function(){
                 currentCenter.y,
                 currentCenter.z
             );
+            */
 
             that.guiValue.previous.zRot = value;
 
-            that.updatePlaneEquation();
+            //that.updatePlaneEquation();
 
             // calling the callback if defined
             if(that.onChangeCallback){
@@ -579,9 +595,11 @@ VolumeNavigator.prototype.buildGuiList = function(listName, list, callback){
     this.gui.remove(this.guiValue.customList["controller"]);
     this.guiValue.customList = {};
     // Works because the list is the last element of gui
-    this.gui.__controllers[this.gui.__controllers.length - 1].remove();
+    //this.gui.__controllers[this.gui.__controllers.length - 1].remove();
 
   }
+
+  console.log(this.gui.__controllers);
 
   this.guiValue.customList["list"] = list;
   this.guiValue.customList["listName"] = listName;
@@ -667,7 +685,7 @@ VolumeNavigator.prototype.updatePlaneEquation = function(){
 
 
 /*
-    return the plane equation as (ax + by + cz + d = 0)
+    return the plane equation as (ax + by + cz + d = 0).
 */
 VolumeNavigator.prototype.getPlaneEquation = function(){
     return this.planeEquation;
@@ -706,4 +724,90 @@ VolumeNavigator.prototype.getPlanePoint = function(){
       this.plane.geometry.vertices[2].z +
       this.plane.geometry.vertices[3].z)  / 4.
   ];
+}
+
+
+/*
+  Change the orientation of the plane so that its normal vector is v.
+  The center of rotation is the center of the red square that represents the plane
+  (not the origin)
+  arg:
+    vector: Array [x, y, z] - a normal vector (normalized or not)
+*/
+VolumeNavigator.prototype.setPlaneNormal = function(vector){
+
+   var toLookAt = new THREE.Vector3(vector[0], vector[1], vector[2]);
+
+   var currentCenter = {
+       x: this.plane.geometry.boundingSphere.center.x,
+       y: this.plane.geometry.boundingSphere.center.y,
+       z: this.plane.geometry.boundingSphere.center.z
+   }
+
+   this.plane.geometry.translate(
+       -currentCenter.x,
+       -currentCenter.y,
+       -currentCenter.z
+   );
+
+    this.plane.geometry.lookAt(toLookAt);
+
+   this.plane.geometry.translate(
+       currentCenter.x,
+       currentCenter.y,
+       currentCenter.z
+   );
+
+   this.updatePlaneEquation();
+
+}
+
+
+/*
+  Rotate the plane (red square) using the center of the square as the center of rotation
+  (and not the origin as it would do by default).
+  args ax, ay and az are in degrees and can be 0.
+  Note: the plane equation is updated in the end.
+*/
+VolumeNavigator.prototype.rotatePlaneDegree = function(ax, ay, az){
+
+  var radx = ax * Math.PI / 180.
+  var rady = ay * Math.PI / 180.
+  var radz = az * Math.PI / 180.
+
+  this.rotatePlaneRadian(radx, rady, radz);
+
+}
+
+
+/*
+  Rotate the plane (red square) using the center of the square as the center of rotation
+  (and not the origin as it would do by default).
+  args ax, ay and az are in radians and can be 0.
+  Note: the plane equation is updated in the end.
+*/
+VolumeNavigator.prototype.rotatePlaneRadian = function(ax, ay, az){
+  var currentCenter = {
+      x: this.plane.geometry.boundingSphere.center.x,
+      y: this.plane.geometry.boundingSphere.center.y,
+      z: this.plane.geometry.boundingSphere.center.z
+  }
+
+  this.plane.geometry.translate(
+      -currentCenter.x,
+      -currentCenter.y,
+      -currentCenter.z
+  );
+
+  this.plane.geometry.rotateX(ax);
+  this.plane.geometry.rotateY(ay);
+  this.plane.geometry.rotateZ(az);
+
+  this.plane.geometry.translate(
+      currentCenter.x,
+      currentCenter.y,
+      currentCenter.z
+  );
+
+  this.updatePlaneEquation();
 }
