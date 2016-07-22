@@ -347,7 +347,7 @@ VolumeNavigator.prototype.initGui = function(){
 
     // TRANSLATION
     var planeTransFolder = this.gui.addFolder('Plane translation');
-    planeTransFolder.add(this.guiValue.current, "xTrans", -this.boxDiagonal*1., this.boxDiagonal*1., 1).name("x")
+    planeTransFolder.add(this.guiValue.current, "xTrans", -this.boxDiagonal*1., this.boxDiagonal*1., 1).name("x").listen()
         .onChange(function(value) {
             that.plane.geometry.translate(
                 that.guiValue.previous.xTrans - that.guiValue.current.xTrans,
@@ -372,7 +372,7 @@ VolumeNavigator.prototype.initGui = function(){
           }
         });
 
-    planeTransFolder.add(this.guiValue.current, "yTrans", -this.boxDiagonal*1., this.boxDiagonal*1., 1).name("y")
+    planeTransFolder.add(this.guiValue.current, "yTrans", -this.boxDiagonal*1., this.boxDiagonal*1., 1).name("y").listen()
         .onChange(function(value) {
             that.plane.geometry.translate(
                 that.guiValue.previous.xTrans - that.guiValue.current.xTrans,
@@ -396,7 +396,7 @@ VolumeNavigator.prototype.initGui = function(){
           }
         });
 
-    planeTransFolder.add(this.guiValue.current, "zTrans", -this.boxDiagonal*1., this.boxDiagonal*1., 1).name("z")
+    planeTransFolder.add(this.guiValue.current, "zTrans", -this.boxDiagonal*1., this.boxDiagonal*1., 1).name("z").listen()
         .onChange(function(value) {
             that.plane.geometry.translate(
                 that.guiValue.previous.xTrans - that.guiValue.current.xTrans,
@@ -724,6 +724,38 @@ VolumeNavigator.prototype.getPlanePoint = function(){
       this.plane.geometry.vertices[2].z +
       this.plane.geometry.vertices[3].z)  / 4.
   ];
+}
+
+
+/*
+  Define the center point of the red square (symbolizes a point of the plane).
+  Along with setPlaneNormal(), it defines the plane equation.
+  Args:
+    p: Array [x, y, z] - the absolute position to reach
+*/
+VolumeNavigator.prototype.setPlanePoint = function(p){
+  var currentPlanePoint = this.getPlanePoint();
+
+  // Translate the plane to origin and then to p
+  this.plane.geometry.translate(
+      -currentPlanePoint[0] + p[0],
+      -currentPlanePoint[1] + p[1],
+      -currentPlanePoint[2] + p[2]
+  );
+
+  this.guiValue.current.xTrans = p[0];
+  this.guiValue.current.yTrans = p[1];
+  this.guiValue.current.zTrans = p[2];
+
+  this.guiValue.previous.xTrans = p[0];
+  this.guiValue.previous.yTrans = p[1];
+  this.guiValue.previous.zTrans = p[2];
+
+
+
+  // updating equation and its display on dat.gui
+  this.updatePlaneEquation();
+
 }
 
 
