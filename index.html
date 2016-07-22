@@ -90,19 +90,19 @@ https://aerotwist.com/tutorials/getting-started-with-three-js/
 
   // the outer box size
   var outerBoxOptions = {
-    xSize: 330,
-    ySize: 350,
-    zSize: 385
+    xSize: 100,
+    ySize: 100,
+    zSize: 100
   }
 
   // the inner box size and offset
   var innerBoxOptions = {
-    xSize: 150,
-    ySize: 210,
-    zSize: 280,
-    xOrigin: 100,
-    yOrigin: 30,
-    zOrigin: 45
+    xSize: 50,
+    ySize: 50,
+    zSize: 50,
+    xOrigin: 25,
+    yOrigin: 25,
+    zOrigin: 25
   }
 
   // creating a VolumeNavigator instance
@@ -140,10 +140,14 @@ https://aerotwist.com/tutorials/getting-started-with-three-js/
   );
 
   // optional: define the plane normal manually (updates the plane equation)
-  vn.setPlaneNormal([0, 1, 1]);
+  //vn.setPlaneNormal([0, 1, 1]);
+  //vn.setPlaneNormal([0, 0, 1]);
+  //vn.setPlaneNormal([80, 0, 10]);
+  //vn.setPlaneNormal([0, 23, 10]);
+  //vn.setPlaneNormal([1, 1, 0]);
 
   // optional: define the plane center point (updates the plane equation)
-  vn.setPlanePoint([23, 33, 104]);
+  //vn.setPlanePoint([23, 33, 104]);
 
   </script>
 

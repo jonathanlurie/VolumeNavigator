@@ -56,7 +56,8 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
     // build the box context
     this.buildInnerBox();
     this.buildOuterBox();
-    this.buildPlane();
+    //this.buildPlane();
+    this.buildPlaneFromNormalAndPoint([0, 1, 1], [0, 0, 0])
     this.setupLighting();
 
     // initialize the UI (dat.gui)
@@ -252,6 +253,109 @@ VolumeNavigator.prototype.buildPlane = function(){
     this.plane.geometry.computeFaceNormals();
     this.scene.add( new THREE.Mesh( this.plane.geometry, this.plane.material ) );
 
+}
+
+
+VolumeNavigator.prototype.buildPlaneFromNormalAndPoint = function(vector, point){
+
+  var p1 = new THREE.Vector3(point[0], point[1], point[2]);
+  var n = new THREE.Vector3(vector[0], vector[1], vector[2]).normalize();
+  var d = (-1) * (n.x * p1.x + n.y * p1.y + n.z * p1.z );
+
+  // find another point on the plane...
+  // The next 3 cases are for when a plane is (at least in 1D)
+  // aligned with the referential
+  var p2 = null;
+
+  // case 1
+  if(n.z != 0){
+    var x2 = p1.x + 1;
+    var y2 = p1.y;
+    var z2 = (-1) * ( (n.x * x2 + n.y * y2 + d) / n.z );
+    p2 = new THREE.Vector3(x2, y2, z2);
+  }
+
+  // case 2
+  if(n.y != 0 && !p2){
+    var x2 = p1.x + 1;
+    var z2 = p1.z;
+    var y2 = (-1) * ( (n.x * x2 + n.z * z2 + d) / n.y );
+    p2 = new THREE.Vector3(x2, y2, z2);
+  }
+
+  // case 3
+  if(n.x != 0 && !p2){
+    var y2 = p1.y + 1;
+    var z2 = p1.z;
+    var x2 =  (-1) * ( (n.y * y2 + n.z * z2 + d) / n.x );
+    p2 = new THREE.Vector3(x2, y2, z2);
+  }
+
+  // unit vectors:
+  var u = new THREE.Vector3().subVectors(p2, p1).normalize();
+  var v = new THREE.Vector3().crossVectors(u, n).normalize();
+
+  // the square representing the plan has a side measuring this.boxDiagonal
+  this.plane = {};
+
+  // material
+  this.plane.material = new THREE.MeshLambertMaterial( {
+      transparent: true,
+      opacity: 0.2,
+      color: 0xFF0000,
+      emissive: 0x000000,    // darkest color
+      depthWrite: true,
+      depthTest: true,
+      side: THREE.DoubleSide,
+  } );
+
+  this.plane.geometry = new THREE.Geometry();
+
+  // vertice declaration
+  // 0
+  this.plane.geometry.vertices.push(
+    new THREE.Vector3(
+      -(this.boxDiagonal/2) * u.x - (this.boxDiagonal/2) * v.x,
+      -(this.boxDiagonal/2) * u.y - (this.boxDiagonal/2) * v.y,
+      -(this.boxDiagonal/2) * u.z - (this.boxDiagonal/2) * v.z
+    ));
+
+  // 1
+  this.plane.geometry.vertices.push(
+    new THREE.Vector3(
+      (this.boxDiagonal/2) * u.x - (this.boxDiagonal/2) * v.x,
+      (this.boxDiagonal/2) * u.y - (this.boxDiagonal/2) * v.y,
+      (this.boxDiagonal/2) * u.z - (this.boxDiagonal/2) * v.z
+    ));
+
+  // 2
+  this.plane.geometry.vertices.push(
+    new THREE.Vector3(
+      (this.boxDiagonal/2) * u.x + (this.boxDiagonal/2) * v.x,
+      (this.boxDiagonal/2) * u.y + (this.boxDiagonal/2) * v.y,
+      (this.boxDiagonal/2) * u.z + (this.boxDiagonal/2) * v.z
+    ));
+
+  // 3
+  this.plane.geometry.vertices.push(
+    new THREE.Vector3(
+      -(this.boxDiagonal/2) * u.x + (this.boxDiagonal/2) * v.x,
+      -(this.boxDiagonal/2) * u.y + (this.boxDiagonal/2) * v.y,
+      -(this.boxDiagonal/2) * u.z + (this.boxDiagonal/2) * v.z
+    ));
+
+  // creation of triangles from existing vertice (using their index)
+  this.plane.geometry.faces.push( new THREE.Face3( 0, 1, 2 ) );
+  this.plane.geometry.faces.push( new THREE.Face3( 3, 0, 2 ) );
+
+  this.plane.geometry.translate(
+      this.outerBoxSize.xSize / 2,
+      this.outerBoxSize.ySize / 2,
+      this.outerBoxSize.zSize / 2
+  );
+
+  this.plane.geometry.computeFaceNormals();
+  this.scene.add( new THREE.Mesh( this.plane.geometry, this.plane.material ) );
 }
 
 
@@ -621,12 +725,10 @@ VolumeNavigator.prototype.buildGuiList = function(listName, list, callback){
 */
 VolumeNavigator.prototype.updatePlaneEquation = function(){
 
-    //this.planeEquation
+    // Updating this.planeEquation using 3 points of the plane:
     var P = this.plane.geometry.vertices[0];
     var Q = this.plane.geometry.vertices[1];
     var R = this.plane.geometry.vertices[2];
-
-
 
     var vPQ = new THREE.Vector3( 0, 0, 0 );
     vPQ.subVectors(Q, P);
@@ -653,6 +755,7 @@ VolumeNavigator.prototype.updatePlaneEquation = function(){
     this.planeEquation.c = Math.round(eq.z * roundFactor) / roundFactor;
     this.planeEquation.d = Math.round(eq.w * roundFactor) / roundFactor;
 
+    // create a nice-to-display equation
     this.guiValue.literalPlaneEquation.literal =
         this.planeEquation.a + "x + " +
         this.planeEquation.b + "y + " +
@@ -664,6 +767,9 @@ VolumeNavigator.prototype.updatePlaneEquation = function(){
 
     var n = this.getPlaneNormal();
     var p = this.getPlanePoint();
+
+    console.log("normal from VolumeNavigator.updatePlaneEquation");
+    console.log(n);
 
     var normalRounded = {
       x: Math.round(n[0] * roundFactor) / roundFactor,
@@ -743,6 +849,7 @@ VolumeNavigator.prototype.setPlanePoint = function(p){
       -currentPlanePoint[2] + p[2]
   );
 
+
   this.guiValue.current.xTrans = p[0];
   this.guiValue.current.yTrans = p[1];
   this.guiValue.current.zTrans = p[2];
@@ -750,6 +857,7 @@ VolumeNavigator.prototype.setPlanePoint = function(p){
   this.guiValue.previous.xTrans = p[0];
   this.guiValue.previous.yTrans = p[1];
   this.guiValue.previous.zTrans = p[2];
+
 
 
 
@@ -768,31 +876,70 @@ VolumeNavigator.prototype.setPlanePoint = function(p){
 */
 VolumeNavigator.prototype.setPlaneNormal = function(vector){
 
-   var toLookAt = new THREE.Vector3(vector[0], vector[1], vector[2]);
 
-   var currentCenter = {
-       x: this.plane.geometry.boundingSphere.center.x,
-       y: this.plane.geometry.boundingSphere.center.y,
-       z: this.plane.geometry.boundingSphere.center.z
-   }
 
-   this.plane.geometry.translate(
-       -currentCenter.x,
-       -currentCenter.y,
-       -currentCenter.z
-   );
+  var toLookAt = new THREE.Vector3(vector[0], vector[1], vector[2]);
 
-    this.plane.geometry.lookAt(toLookAt);
+  var currentCenter = {
+     x: this.plane.geometry.boundingSphere.center.x,
+     y: this.plane.geometry.boundingSphere.center.y,
+     z: this.plane.geometry.boundingSphere.center.z
+  }
 
-   this.plane.geometry.translate(
-       currentCenter.x,
-       currentCenter.y,
-       currentCenter.z
-   );
 
-   this.updatePlaneEquation();
+  this.plane.geometry.translate(
+     -currentCenter.x,
+     -currentCenter.y,
+     -currentCenter.z
+  );
 
+  this.plane.geometry.lookAt(toLookAt);
+
+  console.log("normal from setPlaneNormal");
+  console.log(this.plane.geometry.faces[0].normal);
+
+  this.plane.geometry.translate(
+     currentCenter.x,
+     currentCenter.y,
+     currentCenter.z
+  );
+
+this.updatePlaneEquation();
+
+
+  /*
+  var xAxis =  new THREE.Vector3(1, 0, 0);
+  var yAxis =  new THREE.Vector3(0, 1, 0);
+  var zAxis =  new THREE.Vector3(0, 0, 1);
+
+  // the angle between the current normal to x, y and z axis
+  var angleNormal2xAxis = this.plane.geometry.faces[0].normal.angleTo(xAxis);
+  var angleNormal2yAxis = this.plane.geometry.faces[0].normal.angleTo(yAxis);
+  var angleNormal2zAxis = this.plane.geometry.faces[0].normal.angleTo(zAxis);
+
+
+  var futureNormal = new THREE.Vector3(vector[0], vector[1], vector[2]);
+
+  // the angle between the current normal to x, y and z axis
+  var angleFutureNormal2xAxis = futureNormal.angleTo(xAxis);
+  var angleFutureNormal2yAxis = futureNormal.angleTo(yAxis);
+  var angleFutureNormal2zAxis = futureNormal.angleTo(zAxis);
+
+  console.log("angles: " + angleFutureNormal2xAxis*180/Math.PI + " " + angleFutureNormal2yAxis*180/Math.PI + " " + angleFutureNormal2zAxis*180/Math.PI);
+
+  this.rotatePlaneRadian(
+    angleFutureNormal2xAxis - angleNormal2xAxis,0, 0) ;
+
+  this.rotatePlaneRadian(0, angleFutureNormal2yAxis - angleNormal2yAxis, 0);
+
+  this.rotatePlaneRadian(0, 0, angleFutureNormal2zAxis - angleNormal2zAxis);
+
+  console.log("actualNormal:");
+  console.log(this.plane.geometry.faces[0].normal);
+  */
 }
+
+
 
 
 /*
