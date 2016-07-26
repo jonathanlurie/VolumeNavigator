@@ -43,12 +43,28 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
         d: 0
     }
 
+    // array of intersection points between the plane and the volume
+    this.planePolygon = null;
+
+    // array of object (material, geometry, mesh).
+    // Used to symbolize the intersections between the plane and the volume
+    this.intersectionSpheres = [];
+
+    // declaring it in advance allow to test its instanciation
+    // contains the mesh, geometry and material of the plane
+    this.plane = null;
+    this.arrowHelper = null;
+
     // callback when a slider is moved (still mouse down)
     this.onChangeCallback = null;
 
     // callback when a slider has finished to slide (mouse up)
     this.onFinishChangeCallback = null;
 
+    // Array containg each edge (12) equation in space
+    this.cubeEdges = this.getEdgesEquations();
+
+    this.vectorTools = new VectorTools();
 
     // initialize THREE js elements necessary to create and render a scene
     this.init();
@@ -56,15 +72,14 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
     // build the box context
     this.buildInnerBox();
     this.buildOuterBox();
-    //this.buildPlane();
-    this.buildPlaneFromNormalAndPoint([0, 1, 1], [0, 0, 0])
+    this.buildPlane();
     this.setupLighting();
 
     // initialize the UI (dat.gui)
     this.initGui();
 
     // just toinitialize in order to update dat.gui field
-    this.updatePlaneEquation();
+    this.update();
 
     // animate and update
     this.animate();
@@ -213,49 +228,25 @@ VolumeNavigator.prototype.buildOuterBox = function(){
 
 
 /*
-    Build the plane out of 2 triangles.
-    We will then be able to tilt and translate this plane.
+    Calls buildPlaneFromNormalAndPoint with default settings
 */
 VolumeNavigator.prototype.buildPlane = function(){
 
-    this.plane = {};
+  this.buildPlaneFromNormalAndPoint(
+    [0, 0, 1],
+    [
+      this.outerBoxSize.xSize / 2,
+      this.outerBoxSize.ySize / 2,
+      this.outerBoxSize.zSize / 2
+    ]
 
-    // material
-    this.plane.material = new THREE.MeshLambertMaterial( {
-        transparent: true,
-        opacity: 0.2,
-        color: 0xFF0000,
-        emissive: 0x000000,    // darkest color
-        depthWrite: true,
-        depthTest: true,
-        side: THREE.DoubleSide,
-    } );
-
-
-    this.plane.geometry = new THREE.Geometry();
-
-    // vertice declaration
-    this.plane.geometry.vertices.push( new THREE.Vector3( -this.boxDiagonal/2, this.boxDiagonal/2, 0 ) ); // 0
-    this.plane.geometry.vertices.push( new THREE.Vector3(  this.boxDiagonal/2, -this.boxDiagonal/2, 0 ) ); // 1
-    this.plane.geometry.vertices.push( new THREE.Vector3(  this.boxDiagonal/2,  this.boxDiagonal/2, 0 ) ); // 2
-    this.plane.geometry.vertices.push( new THREE.Vector3(  -this.boxDiagonal/2,  -this.boxDiagonal/2, 0 ) ); // 3
-
-    // creation of triangles from existing vertice (using their index)
-    this.plane.geometry.faces.push( new THREE.Face3( 0, 1, 2 ) );
-    this.plane.geometry.faces.push( new THREE.Face3( 0, 3, 1 ) );
-
-    this.plane.geometry.translate(
-        this.outerBoxSize.xSize / 2,
-        this.outerBoxSize.ySize / 2,
-        this.outerBoxSize.zSize / 2
-    );
-
-    this.plane.geometry.computeFaceNormals();
-    this.scene.add( new THREE.Mesh( this.plane.geometry, this.plane.material ) );
-
+  );
 }
 
 
+/*
+  rebuild a plane from scratch. May or may not overload the existing one
+*/
 VolumeNavigator.prototype.buildPlaneFromNormalAndPoint = function(vector, point){
 
   var p1 = new THREE.Vector3(point[0], point[1], point[2]);
@@ -295,8 +286,26 @@ VolumeNavigator.prototype.buildPlaneFromNormalAndPoint = function(vector, point)
   var u = new THREE.Vector3().subVectors(p2, p1).normalize();
   var v = new THREE.Vector3().crossVectors(u, n).normalize();
 
+  // remove the plane from the scene to RE-build it
+  if(this.plane){
+    console.log("rebuild the plane");
+      this.scene.remove( this.plane.mesh );
+  }
+
+  if(this.guiValue){
+    this.guiValue.current.xTrans = point[0];
+    this.guiValue.current.yTrans = point[1];
+    this.guiValue.current.zTrans = point[2];
+
+    this.guiValue.previous.xTrans = point[0];
+    this.guiValue.previous.yTrans = point[1];
+    this.guiValue.previous.zTrans = point[2];
+  }
+
+
   // the square representing the plan has a side measuring this.boxDiagonal
   this.plane = {};
+
 
   // material
   this.plane.material = new THREE.MeshLambertMaterial( {
@@ -355,7 +364,8 @@ VolumeNavigator.prototype.buildPlaneFromNormalAndPoint = function(vector, point)
   );
 
   this.plane.geometry.computeFaceNormals();
-  this.scene.add( new THREE.Mesh( this.plane.geometry, this.plane.material ) );
+  this.plane.mesh = new THREE.Mesh( this.plane.geometry, this.plane.material );
+  this.scene.add( this.plane.mesh );
 }
 
 
@@ -461,7 +471,7 @@ VolumeNavigator.prototype.initGui = function(){
 
             that.guiValue.previous.xTrans = value;
 
-            that.updatePlaneEquation();
+            that.update();
 
             // calling the callback if defined
             if(that.onChangeCallback){
@@ -486,7 +496,7 @@ VolumeNavigator.prototype.initGui = function(){
 
             that.guiValue.previous.yTrans = value;
 
-            that.updatePlaneEquation();
+            that.update();
 
             // calling the callback if defined
             if(that.onChangeCallback){
@@ -510,7 +520,7 @@ VolumeNavigator.prototype.initGui = function(){
 
             that.guiValue.previous.zTrans = value;
 
-            that.updatePlaneEquation();
+            that.update();
 
             // calling the callback if defined
             if(that.onChangeCallback){
@@ -530,38 +540,8 @@ VolumeNavigator.prototype.initGui = function(){
     planeRotationFolder.add(this.guiValue.current, "xRot", -180, 180).name("x")
         .onChange(function(value) {
             dif = that.guiValue.previous.xRot - value;
-
             that.rotatePlaneDegree(dif, 0, 0);
-
-            /*
-            var rad = dif * Math.PI / 180.
-
-
-
-            var currentCenter = {
-                x: that.plane.geometry.boundingSphere.center.x,
-                y: that.plane.geometry.boundingSphere.center.y,
-                z: that.plane.geometry.boundingSphere.center.z
-            }
-
-            that.plane.geometry.translate(
-                -currentCenter.x,
-                -currentCenter.y,
-                -currentCenter.z
-            );
-
-            that.plane.geometry.rotateX(rad);
-
-            that.plane.geometry.translate(
-                currentCenter.x,
-                currentCenter.y,
-                currentCenter.z
-            );
-            */
-
             that.guiValue.previous.xRot = value;
-
-            //that.updatePlaneEquation();
 
             // calling the callback if defined
             if(that.onChangeCallback){
@@ -578,36 +558,8 @@ VolumeNavigator.prototype.initGui = function(){
     planeRotationFolder.add(this.guiValue.current, "yRot", -180, 180, 1).name("y")
         .onChange(function(value) {
             dif = that.guiValue.previous.yRot - value;
-
             that.rotatePlaneDegree(0, dif, 0);
-
-            /*
-            var rad = dif * Math.PI / 180.
-
-            var currentCenter = {
-                x: that.plane.geometry.boundingSphere.center.x,
-                y: that.plane.geometry.boundingSphere.center.y,
-                z: that.plane.geometry.boundingSphere.center.z
-            }
-
-            that.plane.geometry.translate(
-                -currentCenter.x,
-                -currentCenter.y,
-                -currentCenter.z
-            );
-
-            that.plane.geometry.rotateY(rad);
-
-            that.plane.geometry.translate(
-                currentCenter.x,
-                currentCenter.y,
-                currentCenter.z
-            );
-            */
-
             that.guiValue.previous.yRot = value;
-
-            //that.updatePlaneEquation();
 
             // calling the callback if defined
             if(that.onChangeCallback){
@@ -624,37 +576,8 @@ VolumeNavigator.prototype.initGui = function(){
     planeRotationFolder.add(this.guiValue.current, "zRot", -180, 180, 1).name("z")
         .onChange(function(value) {
             dif = that.guiValue.previous.zRot - value;
-
             that.rotatePlaneDegree(0, 0, dif);
-
-            /*
-            var rad = dif * Math.PI / 180.
-
-
-            var currentCenter = {
-                x: that.plane.geometry.boundingSphere.center.x,
-                y: that.plane.geometry.boundingSphere.center.y,
-                z: that.plane.geometry.boundingSphere.center.z
-            }
-
-            that.plane.geometry.translate(
-                -currentCenter.x,
-                -currentCenter.y,
-                -currentCenter.z
-            )
-
-            that.plane.geometry.rotateZ(rad);
-
-            that.plane.geometry.translate(
-                currentCenter.x,
-                currentCenter.y,
-                currentCenter.z
-            );
-            */
-
             that.guiValue.previous.zRot = value;
-
-            //that.updatePlaneEquation();
 
             // calling the callback if defined
             if(that.onChangeCallback){
@@ -703,8 +626,6 @@ VolumeNavigator.prototype.buildGuiList = function(listName, list, callback){
 
   }
 
-  console.log(this.gui.__controllers);
-
   this.guiValue.customList["list"] = list;
   this.guiValue.customList["listName"] = listName;
   this.guiValue.customList["callback"] = callback;
@@ -721,72 +642,75 @@ VolumeNavigator.prototype.buildGuiList = function(listName, list, callback){
 
 
 /*
+  called when a slider is moved.
+  Update few things: equation, normal, point, hitpoint
+*/
+VolumeNavigator.prototype.update = function(){
+  this.updatePlaneEquation();
+
+  // compute the intersection points
+  this.computeCubePlaneHitPoints();
+
+  this._orderPolygonPoints();
+  //this.updateHitPointSpheres();
+
+}
+
+
+/*
     Updates the plane equation, based on three points of the plane
 */
 VolumeNavigator.prototype.updatePlaneEquation = function(){
 
-    // Updating this.planeEquation using 3 points of the plane:
-    var P = this.plane.geometry.vertices[0];
-    var Q = this.plane.geometry.vertices[1];
-    var R = this.plane.geometry.vertices[2];
-
-    var vPQ = new THREE.Vector3( 0, 0, 0 );
-    vPQ.subVectors(Q, P);
-
-    var vPR = new THREE.Vector3( 0, 0, 0 );
-    vPR.subVectors(R, P);
-
-    var n = new THREE.Vector3( 0, 0, 0 );
-    n.crossVectors(vPQ, vPR);
-
-    var eq = new THREE.Vector4(
-        n.x,
-        n.y,
-        n.z,
-        (-1) * (n.x*P.x + n.y*P.y + n.z*P.z)
-    );
-
-    eq.normalize();
-
-    var roundFactor = 10000;
-
-    this.planeEquation.a = Math.round(eq.x * roundFactor) / roundFactor;
-    this.planeEquation.b = Math.round(eq.y * roundFactor) / roundFactor;
-    this.planeEquation.c = Math.round(eq.z * roundFactor) / roundFactor;
-    this.planeEquation.d = Math.round(eq.w * roundFactor) / roundFactor;
-
-    // create a nice-to-display equation
-    this.guiValue.literalPlaneEquation.literal =
-        this.planeEquation.a + "x + " +
-        this.planeEquation.b + "y + " +
-        this.planeEquation.c + "z + " +
-        this.planeEquation.d + " = 0";
+  var n = this.getPlaneNormal();
+  var p = this.getPlanePoint();
 
 
-    // Display/refresh the plane normal and the point
+  var eq = new THREE.Vector4(
+      n[0],
+      n[1],
+      n[2],
+      (-1) * (n[0]*p[0] + n[1]*p[1] + n[2]*p[2])
+  );
 
-    var n = this.getPlaneNormal();
-    var p = this.getPlanePoint();
+  //eq.normalize();
 
-    console.log("normal from VolumeNavigator.updatePlaneEquation");
-    console.log(n);
+  var roundFactor = 10000;
 
-    var normalRounded = {
-      x: Math.round(n[0] * roundFactor) / roundFactor,
-      y: Math.round(n[1] * roundFactor) / roundFactor,
-      z: Math.round(n[2] * roundFactor) / roundFactor
-    };
+  this.planeEquation.a = Math.round(eq.x * roundFactor) / roundFactor;
+  this.planeEquation.b = Math.round(eq.y * roundFactor) / roundFactor;
+  this.planeEquation.c = Math.round(eq.z * roundFactor) / roundFactor;
+  this.planeEquation.d = Math.round(eq.w * roundFactor) / roundFactor;
+
+  // create a nice-to-display equation
+  this.guiValue.literalPlaneEquation.literal =
+      this.planeEquation.a + "x + " +
+      this.planeEquation.b + "y + " +
+      this.planeEquation.c + "z + " +
+      this.planeEquation.d + " = 0";
 
 
-    var pointRounded = {
-      x: Math.round(p[0] * roundFactor) / roundFactor,
-      y: Math.round(p[1] * roundFactor) / roundFactor,
-      z: Math.round(p[2] * roundFactor) / roundFactor
-    };
+  // Display/refresh the plane normal and the point
 
-    this.guiValue.normalVector.literal = "(" + normalRounded.x + " ; " + normalRounded.y + " ; " + normalRounded.z + ")";
+  var normalRounded = {
+    x: Math.round(n[0] * roundFactor) / roundFactor,
+    y: Math.round(n[1] * roundFactor) / roundFactor,
+    z: Math.round(n[2] * roundFactor) / roundFactor
+  };
 
-    this.guiValue.point.literal = "(" + pointRounded.x + " ; " + pointRounded.y + " ; " + pointRounded.z + ")";
+
+  var pointRounded = {
+    x: Math.round(p[0] * roundFactor) / roundFactor,
+    y: Math.round(p[1] * roundFactor) / roundFactor,
+    z: Math.round(p[2] * roundFactor) / roundFactor
+  };
+
+  this.guiValue.normalVector.literal = "(" + normalRounded.x + " ; " + normalRounded.y + " ; " + normalRounded.z + ")";
+
+  this.guiValue.point.literal = "(" + pointRounded.x + " ; " + pointRounded.y + " ; " + pointRounded.z + ")";
+
+
+  //this.getRotationMatrixSliceToZX();
 }
 
 
@@ -862,7 +786,7 @@ VolumeNavigator.prototype.setPlanePoint = function(p){
 
 
   // updating equation and its display on dat.gui
-  this.updatePlaneEquation();
+  this.update();
 
 }
 
@@ -904,7 +828,7 @@ VolumeNavigator.prototype.setPlaneNormal = function(vector){
      currentCenter.z
   );
 
-this.updatePlaneEquation();
+  this.update();
 
 
   /*
@@ -988,5 +912,390 @@ VolumeNavigator.prototype.rotatePlaneRadian = function(ax, ay, az){
       currentCenter.z
   );
 
-  this.updatePlaneEquation();
+  this.update();
+}
+
+
+/*
+  TO REMOVE
+  This method compute the rotation matrix between the
+  plane ZX and the oblique sclice.
+*/
+VolumeNavigator.prototype.getRotationMatrixSliceToZX = function(ax, ay, az){
+  var n_zx = [0, 1, 0];
+  var n_slice = this.getPlaneNormal();
+
+  // cross product gives the normal to n_zx and n_slice and helps giving the sine.
+  // In this matter, the normal vector is also the axis of rotation between n_zx and n_slice
+  var u = this.vectorTool.crossProduct(n_zx, n_slice );
+  var sinTheta = this.vectorTool.getNorm(u);
+  var cosTheta = this.vectorTool.dotProduct(n_zx, n_slice);
+
+  // we need u to be normalize to use it in the rotation matrix
+  var uNorm = this.vectorTool.normalize(u);
+  console.log("--------------------");
+  console.log(uNorm);
+  //console.log("sine: " + sinTheta);
+
+  console.log(Math.acos(cosTheta)/ Math.PI * 180);
+
+
+  //console.log("cosine: " + cosTheta);
+
+  var rotationMatrix = [
+    [cosTheta + uNorm[0]*uNorm[0]*(1-cosTheta)  , uNorm[0]*uNorm[1]*(1-cosTheta) - uNorm[2]*sinTheta, uNorm[0]*uNorm[2]*(1-cosTheta) + uNorm[1]*sinTheta],
+    [uNorm[1]*uNorm[0]*(1-cosTheta) + uNorm[2]*sinTheta , cosTheta + uNorm[1]*uNorm[1]*(1-cosTheta), uNorm[1]*uNorm[2]*(1-cosTheta) - uNorm[0]*sinTheta],
+    [uNorm[2]*uNorm[0]*(1-cosTheta) - uNorm[2]*sinTheta , uNorm[2]*uNorm[1]*(1-cosTheta) + uNorm[0]*sinTheta, cosTheta + uNorm[2]*uNorm[2]*(1-cosTheta)]
+  ]
+
+  var point = [50, 50, 50];
+  var newPoint = this.vectorTool.rotate(point, rotationMatrix)
+  console.log(newPoint);
+
+  /*
+  if(this.ArrowHelper){
+    this.scene.remove( this.arrowHelper );
+  }
+
+  var dir = new THREE.Vector3( 1, 0, 0 );
+  var origin = new THREE.Vector3( newPoint[0], newPoint[1], newPoint[2] );
+  var length = 10;
+  var hex = 0x000000;
+
+  this.arrowHelper = new THREE.ArrowHelper( dir, origin, length, hex );
+  this.scene.add( this.arrowHelper );
+  */
+
+  //console.log(rotationMatrix);
+
+}
+
+
+
+
+/*
+  Build the edge equations (12 of them). Helpfull when dealing with hit points.
+  (Dont call it at every refresh, they dont change!)
+*/
+VolumeNavigator.prototype.getEdgesEquations = function(){
+  var xLength = this.outerBoxSize.xSize;
+  var yLength = this.outerBoxSize.ySize;
+  var zLength = this.outerBoxSize.zSize;
+
+
+  var edgeData = [];
+
+  // 0
+  //vector:
+  var edge0Vect = [xLength, 0, 0];
+  var edge0Point = [0, 0, 0];
+
+  // 1
+  // vector:
+  var edge1Vect = [0, yLength, 0];
+  var edge1Point = [0, 0, 0];
+
+  // 2
+  // vector:
+  var edge2Vect = [0, 0, zLength];
+  var edge2Point = [0, 0, 0];
+
+  // 3
+  // vector:
+  var edge3Vect = [0, 0, zLength];
+  var edge3Point = [xLength, 0, 0];
+
+  // 4
+  // vector:
+  var edge4Vect = [xLength, 0, 0];
+  var edge4Point = [0, 0, zLength];
+
+  // 5
+  // vector:
+  var edge5Vect = [xLength, 0, 0];
+  var edge5Point = [0, yLength, 0];
+
+  // 6
+  // vector:
+  var edge6Vect = [0, 0, zLength];
+  var edge6Point = [0, yLength, 0];
+
+  // 7
+  // vector:
+  var edge7Vect = [0, 0, zLength];
+  var edge7Point = [xLength, yLength, 0];
+
+  // 8
+  // vector:
+  var edge8Vect = [xLength, 0, 0];
+  var edge8Point = [0, yLength, zLength];
+
+  // 9
+  // vector:
+  var edge9Vect = [0, yLength, 0];
+  var edge9Point = [0, 0, zLength];
+
+  // 10
+  // vector:
+  var edge10Vect = [0, yLength, 0];
+  var edge10Point = [xLength, 0, 0];
+
+  // 11
+  // vector:
+  var edge11Vect = [0, yLength, 0];
+  var edge11Point = [xLength, 0, zLength];
+
+  edgeData.push( [edge0Vect, edge0Point] );
+  edgeData.push( [edge1Vect, edge1Point] );
+  edgeData.push( [edge2Vect, edge2Point] );
+  edgeData.push( [edge3Vect, edge3Point] );
+  edgeData.push( [edge4Vect, edge4Point] );
+  edgeData.push( [edge5Vect, edge5Point] );
+  edgeData.push( [edge6Vect, edge6Point] );
+  edgeData.push( [edge7Vect, edge7Point] );
+  edgeData.push( [edge8Vect, edge8Point] );
+  edgeData.push( [edge9Vect, edge9Point] );
+  edgeData.push( [edge10Vect, edge10Point] );
+  edgeData.push( [edge11Vect, edge11Point] );
+
+  return edgeData;
+
+}
+
+
+
+VolumeNavigator.prototype.updateHitPointSpheres = function(){
+
+
+  // removing the existing spheres from the scene
+  for(var s=0; s<this.intersectionSpheres.length; s++){
+    this.scene.remove(this.intersectionSpheres[s].mesh);
+  }
+
+  // if there is any...
+  if(this.planePolygon){
+
+    // reseting the array
+    this.intersectionSpheres = [];
+
+    for(var s=0; s<this.planePolygon.length; s++){
+
+      var geometry = new THREE.SphereGeometry( 5, 16, 16 );
+      var material = new THREE.MeshBasicMaterial( {color: 0xffff00} );
+      var mesh = new THREE.Mesh( geometry, material );
+
+      var currentSphere = {
+        geometry: geometry,
+        material: material,
+        mesh: mesh
+      }
+
+      currentSphere.geometry.translate(
+          this.planePolygon[s][0],
+          this.planePolygon[s][1],
+          this.planePolygon[s][2]
+      );
+
+
+
+      this.intersectionSpheres.push(currentSphere);
+      this.scene.add( currentSphere.mesh );
+    }
+
+
+  }
+
+
+}
+
+
+/*
+  Build the list of intersection point between the volume and the plane.
+  Points stored in this.planePolygon
+*/
+VolumeNavigator.prototype.computeCubePlaneHitPoints = function(){
+  var hitPoints = [];
+
+  for(var i=0; i<this.cubeEdges.length; i++){
+    var edge = this.cubeEdges[i];
+    var tempHitPoint = this._getHitPoint(edge[0], edge[1]);
+
+
+    // 1- We dont want to add infinite because it mean an orthogonal edge
+    // from this one (still of the cube) will cross the plane in a single
+    // point -- and this later case is easier to deal with.
+    // 2- Check if hitpoint is within the cube.
+    // 3- Avoid multiple occurence for the same hit point
+    if( tempHitPoint && // may be null if contains Infinity as x, y or z
+        this._isWithin(tempHitPoint))
+    {
+        var isAlreadyIn = false;
+
+        // check if the point is already in the array
+        for(var hp=0; hp<hitPoints.length; hp++ ){
+          if( hitPoints[hp][0] == tempHitPoint[0] &&
+              hitPoints[hp][1] == tempHitPoint[1] &&
+              hitPoints[hp][2] == tempHitPoint[2]){
+                isAlreadyIn = true;
+                break;
+              }
+        }
+
+        if(!isAlreadyIn){
+          hitPoints.push(tempHitPoint);
+        }
+    }
+
+  }
+
+  // array are still easier to deal with
+  this.planePolygon = hitPoints.length ? hitPoints : null;
+}
+
+
+/*
+  Return true if the given point [x, y, z] is within the volume.
+  (or on the edge)
+*/
+VolumeNavigator.prototype._isWithin = function(point){
+  if(point[0] >=0 && point[0] <= this.outerBoxSize.xSize &&
+     point[1] >=0 && point[1] <= this.outerBoxSize.ySize &&
+     point[2] >=0 && point[2] <= this.outerBoxSize.zSize){
+
+    return true;
+  }else{
+    return false;
+  }
+}
+
+/*
+  return a point in 3D space (tuple (x, y, z) ).
+  vector and point define a "fixed vector" (droite affine)
+  both are tuple (x, y, z)
+  plane is the plane equation as a tuple (a, b, c, d)
+*/
+VolumeNavigator.prototype._getHitPoint = function(vector, point){
+
+  // 3D affine system tuple:
+  // ( (l, alpha), (m, beta), (n, gamma) )
+  var affineSystem = this.vectorTools.affine3DFromVectorAndPoint(vector, point);
+
+
+  // system resolution for t:
+  // t = (a*l + b*m + c*n + d) / ( -1 * (a*alpha + b*beta + c*gamma) )
+
+  var tNumerator = ( this.planeEquation.a* affineSystem[0][0] +
+        this.planeEquation.b* affineSystem[1][0] +
+        this.planeEquation.c* affineSystem[2][0] +
+        this.planeEquation.d );
+
+  var tDenominator = (-1) *
+      ( this.planeEquation.a* affineSystem[0][1] +
+        this.planeEquation.b* affineSystem[1][1] +
+        this.planeEquation.c* affineSystem[2][1] );
+
+  // TODO: be sure the cast to float is done
+  // float conversion is mandatory to avoid euclidean div...
+  //var t = float(tNumerator) / float(tDenominator);
+  var t = tNumerator / tDenominator;
+
+
+  // injection of t to the 3D affine system:
+  var x =  affineSystem[0][0] + affineSystem[0][1] * t;
+  var y =  affineSystem[1][0] + affineSystem[1][1] * t;
+  var z =  affineSystem[2][0] + affineSystem[2][1] * t;
+
+
+  // dont bother returning a vector containing Infinity, just return null.
+  // (it will be spotted)
+  if( x == Infinity ||
+      y == Infinity ||
+      z == Infinity)
+  {
+    return null;
+  }
+
+  // otherwise, return the 3D point
+  return [x, y, z]
+}
+
+
+
+/*
+  takes all the vertices of the intersection polygon and re-order the list so
+  that the vertex are ordered cw
+  (or ccw, we dont really care as long as it's no longer a mess)
+*/
+VolumeNavigator.prototype._orderPolygonPoints = function(){
+
+  if(!this.planePolygon)
+    return;
+
+  var nbVertice = this.planePolygon.length;
+
+  // find the center of the polygon
+  var xAvg = 0;
+  var yAvg = 0;
+  var zAvg = 0;
+
+  for(var v=0; v<nbVertice; v++){
+    xAvg += this.planePolygon[v][0];
+    yAvg += this.planePolygon[v][1];
+    zAvg += this.planePolygon[v][2];
+  }
+
+  xAvg /= nbVertice;
+  yAvg /= nbVertice;
+  zAvg /= nbVertice;
+  var center = [xAvg, yAvg, zAvg];
+
+  // create normailized vectors from center to each vertex of the polygon
+  var normalizedRays = [];
+  for(var v=0; v<nbVertice; v++){
+    var currentRay = [
+      center[0] - this.planePolygon[v][0],
+      center[1] - this.planePolygon[v][1],
+      center[2] - this.planePolygon[v][2]
+    ];
+
+    normalizedRays.push(this.vectorTools.normalize(currentRay));
+  }
+
+  // find the angle of each towards the first vertex
+  var angleToFirst = [];
+  angleToFirst.push(0); // the first ray to itself has an angle of 0
+  for(var v=1; v<nbVertice; v++){
+    var cos = this.vectorTools.dotProduct(normalizedRays[0], normalizedRays[v]);
+
+    /*
+    var crossP = this.vectorTools.crossProduct(normalizedRays[0], normalizedRays[v], false);
+    var sin = this.vectorTools.getNorm(crossP);
+
+    angleToFirst.push(Math.atan2(sin, cos));
+    console.log(normalizedRays[0] + " " +  normalizedRays[v]);
+    console.log('cos ' + cos);
+    console.log('sin ' + sin);
+    console.log(crossP);
+    */
+
+    var angle = Math.acos(cos);
+
+    var currentPolygonNormal = this.vectorTools.crossProduct(normalizedRays[0], normalizedRays[v], false);
+    var planeNormal = this.getPlaneNormal();
+    var angleSign = this.vectorTools.dotProduct(currentPolygonNormal, planeNormal)>0? 1:-1;
+
+    angle *= angleSign;
+
+    //console.log(angle);
+
+    angleToFirst.push(angle);
+
+
+
+  }
+
+  console.log(normalizedRays);
+  console.log(angleToFirst);
+
+
 }
