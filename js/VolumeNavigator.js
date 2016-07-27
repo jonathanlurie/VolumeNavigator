@@ -46,6 +46,9 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
     // array of intersection points between the plane and the volume
     this.planePolygon = null;
 
+    // array triangles
+    this.polygonTriangles = null;
+
     // array of object (material, geometry, mesh).
     // Used to symbolize the intersections between the plane and the volume
     this.intersectionSpheres = [];
@@ -73,6 +76,7 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
     this.buildInnerBox();
     this.buildOuterBox();
     this.buildPlane();
+    this.initPolygonTriangles();
     this.setupLighting();
 
     // initialize the UI (dat.gui)
@@ -156,14 +160,24 @@ VolumeNavigator.prototype.buildInnerBox = function(){
     this.innerBox = {};
 
     // material
+    /*
     this.innerBox.material = new THREE.MeshLambertMaterial( {
+
         transparent: true,
-        opacity: 0.2,
-        color: 0xc0059FF,
+        opacity: 1,
+        color: 0x7E2FB4,
         emissive: 0x000000,
         depthWrite: true,
         depthTest: true,
-        side: THREE.DoubleSide
+        side: THREE.DoubleSide,
+        wireframe: true
+    });
+    */
+
+    this.innerBox.material = new THREE.MeshBasicMaterial({
+        color: 0x7E2FB4,
+        wireframe: true,
+
     });
 
     // geometry
@@ -180,8 +194,14 @@ VolumeNavigator.prototype.buildInnerBox = function(){
         this.innerBoxSize.zSize / 2 + this.innerBoxSize.zOrigin
     );
 
+    var innerBoxMesh = new THREE.Mesh( this.innerBox.geometry, this.innerBox.material )
+
     // add the inner box to scene
-    this.scene.add( new THREE.Mesh( this.innerBox.geometry, this.innerBox.material ) );
+    //this.scene.add( innerBoxMesh );
+
+    // adding the wireframe provide better understanding of the scene
+    var helper = new THREE.EdgesHelper( innerBoxMesh, 0x7E2FB4 );
+    this.scene.add( helper );
 
 }
 
@@ -310,7 +330,7 @@ VolumeNavigator.prototype.buildPlaneFromNormalAndPoint = function(vector, point)
   // material
   this.plane.material = new THREE.MeshLambertMaterial( {
       transparent: true,
-      opacity: 0.2,
+      opacity: 0.05,
       color: 0xFF0000,
       emissive: 0x000000,    // darkest color
       depthWrite: true,
@@ -320,37 +340,38 @@ VolumeNavigator.prototype.buildPlaneFromNormalAndPoint = function(vector, point)
 
   this.plane.geometry = new THREE.Geometry();
 
+  var planeSideSize = 0.01; //this.boxDiagonal;
   // vertice declaration
   // 0
   this.plane.geometry.vertices.push(
     new THREE.Vector3(
-      -(this.boxDiagonal/2) * u.x - (this.boxDiagonal/2) * v.x,
-      -(this.boxDiagonal/2) * u.y - (this.boxDiagonal/2) * v.y,
-      -(this.boxDiagonal/2) * u.z - (this.boxDiagonal/2) * v.z
+      -(planeSideSize/2) * u.x - (planeSideSize/2) * v.x,
+      -(planeSideSize/2) * u.y - (planeSideSize/2) * v.y,
+      -(planeSideSize/2) * u.z - (planeSideSize/2) * v.z
     ));
 
   // 1
   this.plane.geometry.vertices.push(
     new THREE.Vector3(
-      (this.boxDiagonal/2) * u.x - (this.boxDiagonal/2) * v.x,
-      (this.boxDiagonal/2) * u.y - (this.boxDiagonal/2) * v.y,
-      (this.boxDiagonal/2) * u.z - (this.boxDiagonal/2) * v.z
+      (planeSideSize/2) * u.x - (planeSideSize/2) * v.x,
+      (planeSideSize/2) * u.y - (planeSideSize/2) * v.y,
+      (planeSideSize/2) * u.z - (planeSideSize/2) * v.z
     ));
 
   // 2
   this.plane.geometry.vertices.push(
     new THREE.Vector3(
-      (this.boxDiagonal/2) * u.x + (this.boxDiagonal/2) * v.x,
-      (this.boxDiagonal/2) * u.y + (this.boxDiagonal/2) * v.y,
-      (this.boxDiagonal/2) * u.z + (this.boxDiagonal/2) * v.z
+      (planeSideSize/2) * u.x + (planeSideSize/2) * v.x,
+      (planeSideSize/2) * u.y + (planeSideSize/2) * v.y,
+      (planeSideSize/2) * u.z + (planeSideSize/2) * v.z
     ));
 
   // 3
   this.plane.geometry.vertices.push(
     new THREE.Vector3(
-      -(this.boxDiagonal/2) * u.x + (this.boxDiagonal/2) * v.x,
-      -(this.boxDiagonal/2) * u.y + (this.boxDiagonal/2) * v.y,
-      -(this.boxDiagonal/2) * u.z + (this.boxDiagonal/2) * v.z
+      -(planeSideSize/2) * u.x + (planeSideSize/2) * v.x,
+      -(planeSideSize/2) * u.y + (planeSideSize/2) * v.y,
+      -(planeSideSize/2) * u.z + (planeSideSize/2) * v.z
     ));
 
   // creation of triangles from existing vertice (using their index)
@@ -652,7 +673,13 @@ VolumeNavigator.prototype.update = function(){
   this.computeCubePlaneHitPoints();
 
   this._orderPolygonPoints();
-  //this.updateHitPointSpheres();
+
+  this.updatePolygonTriangles();
+
+  // sphere to display at each plane/volume intersection
+  this.updateHitPointSpheres();
+
+
 
 }
 
@@ -1080,8 +1107,8 @@ VolumeNavigator.prototype.updateHitPointSpheres = function(){
 
     for(var s=0; s<this.planePolygon.length; s++){
 
-      var geometry = new THREE.SphereGeometry( 5, 16, 16 );
-      var material = new THREE.MeshBasicMaterial( {color: 0xffff00} );
+      var geometry = new THREE.SphereGeometry( this.boxDiagonal/50, 16, 16 );
+      var material = new THREE.MeshBasicMaterial( {color: 0x00ff00} );
       var mesh = new THREE.Mesh( geometry, material );
 
       var currentSphere = {
@@ -1232,6 +1259,62 @@ VolumeNavigator.prototype._orderPolygonPoints = function(){
     return;
 
   var nbVertice = this.planePolygon.length;
+  var center = this.getPolygonCenter();
+
+  // create normailized vectors from center to each vertex of the polygon
+  var normalizedRays = [];
+  for(var v=0; v<nbVertice; v++){
+    var currentRay = [
+      center[0] - this.planePolygon[v][0],
+      center[1] - this.planePolygon[v][1],
+      center[2] - this.planePolygon[v][2]
+    ];
+
+    normalizedRays.push(this.vectorTools.normalize(currentRay));
+  }
+
+  // for each, we have .vertice (a [x, y, z] array) and .angle (rad angle to planePolygonWithAngles[0])
+  var planePolygonWithAngles = [];
+
+  // find the angle of each towards the first vertex
+  planePolygonWithAngles.push({vertex: this.planePolygon[0], angle: 0})
+  for(var v=1; v<nbVertice; v++){
+    var cos = this.vectorTools.dotProduct(normalizedRays[0], normalizedRays[v]);
+    var angle = Math.acos(cos);
+    var currentPolygonNormal = this.vectorTools.crossProduct(normalizedRays[0], normalizedRays[v], false);
+    var planeNormal = this.getPlaneNormal();
+    var angleSign = this.vectorTools.dotProduct(currentPolygonNormal, planeNormal)>0? 1:-1;
+    angle *= angleSign;
+
+    planePolygonWithAngles.push({vertex: this.planePolygon[v], angle: angle})
+  }
+
+  // sort vertices based on their angle to [0]
+  planePolygonWithAngles.sort(function(a, b){
+    return a.angle - b.angle;
+  });
+
+  // make a array of vertex only (ordered)
+  var orderedVertice = [];
+  for(var v=0; v<nbVertice; v++){
+    orderedVertice.push(planePolygonWithAngles[v].vertex);
+  }
+
+  // attribute the ordered array to this.planePolygo
+  this.planePolygon = orderedVertice;
+}
+
+
+/*
+  return the 3D center of the polygon.
+  (Note: the polygon is formed by the intersection of the plane and the cube).
+  Return: [x, y, z] Array
+*/
+VolumeNavigator.prototype.getPolygonCenter = function(){
+  if(!this.planePolygon)
+    return;
+
+  var nbVertice = this.planePolygon.length;
 
   // find the center of the polygon
   var xAvg = 0;
@@ -1249,53 +1332,92 @@ VolumeNavigator.prototype._orderPolygonPoints = function(){
   zAvg /= nbVertice;
   var center = [xAvg, yAvg, zAvg];
 
-  // create normailized vectors from center to each vertex of the polygon
-  var normalizedRays = [];
-  for(var v=0; v<nbVertice; v++){
-    var currentRay = [
-      center[0] - this.planePolygon[v][0],
-      center[1] - this.planePolygon[v][1],
-      center[2] - this.planePolygon[v][2]
-    ];
+  return center;
+}
 
-    normalizedRays.push(this.vectorTools.normalize(currentRay));
-  }
 
-  // find the angle of each towards the first vertex
-  var angleToFirst = [];
-  angleToFirst.push(0); // the first ray to itself has an angle of 0
-  for(var v=1; v<nbVertice; v++){
-    var cos = this.vectorTools.dotProduct(normalizedRays[0], normalizedRays[v]);
 
-    /*
-    var crossP = this.vectorTools.crossProduct(normalizedRays[0], normalizedRays[v], false);
-    var sin = this.vectorTools.getNorm(crossP);
+/*
+  initialize the polygon object
+*/
+VolumeNavigator.prototype.initPolygonTriangles = function(){
+  this.polygonTriangles = {};
 
-    angleToFirst.push(Math.atan2(sin, cos));
-    console.log(normalizedRays[0] + " " +  normalizedRays[v]);
-    console.log('cos ' + cos);
-    console.log('sin ' + sin);
-    console.log(crossP);
-    */
+  // material
+  this.polygonTriangles.material = new THREE.MeshLambertMaterial( {
+      transparent: true,
+      opacity: 0.2,
+      color: 0xff0000,
+      emissive: 0x000000,    // darkest color
+      depthWrite: true,
+      depthTest: true,
+      side: THREE.DoubleSide,
+  } );
 
-    var angle = Math.acos(cos);
+  this.polygonTriangles.geometry = new THREE.Geometry();
+  this.polygonTriangles.geometry.dynamic = true;
 
-    var currentPolygonNormal = this.vectorTools.crossProduct(normalizedRays[0], normalizedRays[v], false);
-    var planeNormal = this.getPlaneNormal();
-    var angleSign = this.vectorTools.dotProduct(currentPolygonNormal, planeNormal)>0? 1:-1;
+  this.polygonTriangles.mesh = new THREE.Mesh( this.polygonTriangles.geometry, this.polygonTriangles.material );
 
-    angle *= angleSign;
+  this.scene.add( this.polygonTriangles.mesh );
+}
 
-    //console.log(angle);
 
-    angleToFirst.push(angle);
+
+VolumeNavigator.prototype.updatePolygonTriangles = function(){
+
+  // there is no polygon to display
+  if(!this.planePolygon){
+    // remove from scene TODO
 
 
 
   }
+  // there is a polygon intersection to display
+  else{
 
-  console.log(normalizedRays);
-  console.log(angleToFirst);
+    //this.scene.remove( this.polygonTriangles.mesh );
+
+    // remove all existing triangles
+    this.polygonTriangles.geometry.faces = [];
+    this.polygonTriangles.geometry.vertices = [];
+
+    // remove and rebuild (since we cannot change buffer size in webGL)
+    this.scene.remove( this.polygonTriangles.mesh );
+    this.initPolygonTriangles();
+
+    var center = this.getPolygonCenter();
+
+    // add the center to the geom
+    this.polygonTriangles.geometry.vertices.push(
+      new THREE.Vector3( center[0], center[1], center[2])
+    );
+
+
+    // add all the vertice to the geom
+    for(v=0; v<this.planePolygon.length; v++){
+
+      this.polygonTriangles.geometry.vertices.push(
+        new THREE.Vector3(
+          this.planePolygon[v][0],
+          this.planePolygon[v][1],
+          this.planePolygon[v][2]
+        ));
+    }
+
+    // shaping the faces out of the vertice
+    for(v=0; v<this.planePolygon.length - 1; v++){
+      this.polygonTriangles.geometry.faces.push( new THREE.Face3( 0, v+1, v+2 ) );
+    }
+
+    // adding the last face manually (to close the loop)
+    this.polygonTriangles.geometry.faces.push( new THREE.Face3( 0, this.planePolygon.length, 1 ) );
+
+    // it was removed earlier
+    this.scene.add( this.polygonTriangles.mesh );
+  }
+
+
 
 
 }
