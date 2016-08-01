@@ -60,7 +60,8 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
   this.onFinishChangeCallback = null;
 
   this.helpers = {
-    polygonCenterArrows: [null, null, null]
+    polygonCenterArrows: [null, null, null],
+    circles: null
   };
 
   // Array containg each edge (12) equation in space
@@ -1460,10 +1461,12 @@ VolumeNavigator.prototype.initHelpers = function(){
   var headLength = length * 0.5;
   var headWidth =  length * 0.4;
 
-  var xColor = 0xff0000;
-  var yColor = 0x00ff00;
-  var zColor = 0x0000ff;
+  var xColor = 0xff3333;
+  var yColor = 0x00ff55;
+  var zColor = 0x0088ff;
 
+
+  // ARROW HELPER - TRANSLATION
   var xDir = new THREE.Vector3( 1, 0, 0 );
   var yDir = new THREE.Vector3( 0, 1, 0 );
   var zDir = new THREE.Vector3( 0, 0, 1 );
@@ -1478,6 +1481,39 @@ VolumeNavigator.prototype.initHelpers = function(){
   this.scene.add( this.helpers.polygonCenterArrows[0] );
   this.scene.add( this.helpers.polygonCenterArrows[1] );
   this.scene.add( this.helpers.polygonCenterArrows[2] );
+
+  // CIRCLE HELPERS - ROTATION
+  var geometryX = new THREE.CircleGeometry( this.boxDiagonal / 2, 64 );
+  var geometryY = new THREE.CircleGeometry( this.boxDiagonal / 2, 64 );
+  var geometryZ = new THREE.CircleGeometry( this.boxDiagonal / 2, 64 );
+  var materialX = new THREE.LineBasicMaterial( { color: xColor } );
+  var materialY = new THREE.LineBasicMaterial( { color: yColor } );
+  var materialZ = new THREE.LineBasicMaterial( { color: zColor } );
+  // remove inner vertice
+  geometryX.vertices.shift();
+  geometryY.vertices.shift();
+  geometryZ.vertices.shift();
+  geometryX.name = "xCircle";
+  geometryY.name = "yCircle";
+  geometryZ.name = "zCircle";
+
+  // X circle
+  var circleX = new THREE.Line( geometryX, materialX );
+  circleX.rotateY(Math.PI / 2)
+  // Y circle
+  var circleY = new THREE.Line( geometryY, materialY );
+  circleY.rotateX(Math.PI / 2)
+  // Z circle
+  var circleZ = new THREE.Line( geometryZ, materialZ );
+
+  this.helpers.circles = new THREE.Object3D();
+  this.helpers.circles.add(circleX);
+  this.helpers.circles.add(circleY);
+  this.helpers.circles.add(circleZ);
+  this.helpers.circles.translateOnAxis(origin.normalize(),  this.boxDiagonal / 2 );
+  this.scene.add( this.helpers.circles );
+
+
 
 }
 
@@ -1498,18 +1534,6 @@ VolumeNavigator.prototype.AxisArrowHelperToggle = function(){
   }
 
 }
-
-/*
-  change the origin of the arrow helpers
-*/
-VolumeNavigator.prototype.____updateArrowHelpers = function(coord){
-  var newOrigin = new THREE.Vector3(coord[0], coord[1], coord[2]);
-
-  this.helpers.polygonCenterArrows[0].position.copy( newOrigin );
-  this.helpers.polygonCenterArrows[1].position.copy( newOrigin );
-  this.helpers.polygonCenterArrows[2].position.copy( newOrigin );
-}
-
 
 
 /*
@@ -1629,28 +1653,34 @@ VolumeNavigator.prototype.onMouseMove = function(event){
       axisIsMoved = true;
     }
 
-    // Did the Y axis arrow moved?
-    var intersects = tmpRaycaster.intersectObjects(
-      this.helpers.polygonCenterArrows[1].children
-    );
+    // one axis at a time to prevent confusion
+    if(!axisIsMoved){
+      // Did the Y axis arrow moved?
+      var intersects = tmpRaycaster.intersectObjects(
+        this.helpers.polygonCenterArrows[1].children
+      );
 
-    if(intersects.length){
-      var deltaMove = intersects[0].point.y -this.currentGrabPosition.y;
-      this.translateArrowHelpers([0, deltaMove, 0])
-      this.currentGrabPosition.y = intersects[0].point.y;
-      axisIsMoved = true;
+      if(intersects.length){
+        var deltaMove = intersects[0].point.y -this.currentGrabPosition.y;
+        this.translateArrowHelpers([0, deltaMove, 0])
+        this.currentGrabPosition.y = intersects[0].point.y;
+        axisIsMoved = true;
+      }
     }
 
-    // Did the Z axis arrow moved?
-    var intersects = tmpRaycaster.intersectObjects(
-      this.helpers.polygonCenterArrows[2].children
-    );
+    // one axis at a time to prevent confusion
+    if(!axisIsMoved){
+      // Did the Z axis arrow moved?
+      var intersects = tmpRaycaster.intersectObjects(
+        this.helpers.polygonCenterArrows[2].children
+      );
 
-    if(intersects.length){
-      var deltaMove = intersects[0].point.z -this.currentGrabPosition.z;
-      this.translateArrowHelpers([0, 0, deltaMove])
-      this.currentGrabPosition.z = intersects[0].point.z;
-      axisIsMoved = true;
+      if(intersects.length){
+        var deltaMove = intersects[0].point.z -this.currentGrabPosition.z;
+        this.translateArrowHelpers([0, 0, deltaMove])
+        this.currentGrabPosition.z = intersects[0].point.z;
+        axisIsMoved = true;
+      }
     }
 
 
@@ -1701,6 +1731,14 @@ VolumeNavigator.prototype.updateAxisRaycaster = function(){
   if(intersectsArrowZ.length){
     hit = true;
     this.currentGrabPosition.copy(intersectsArrowZ[0].point)
+  }
+
+
+  var intersectsArrowCircles = this.raycaster.intersectObjects( this.helpers.circles.children );
+
+
+  if(intersectsArrowCircles.length){
+    console.log(intersectsArrowCircles);
   }
 
   // in any case of hit...
