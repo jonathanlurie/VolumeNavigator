@@ -13,12 +13,6 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
   this.objectGrabed = false;
   this.currentGrabPosition = new THREE.Vector3();
 
-  window.addEventListener( 'mousedown', this.onMouseDown.bind(this), false );
-  window.addEventListener( 'mouseup', this.onMouseUp.bind(this), false );
-  window.addEventListener( 'mousemove', this.onMouseMove.bind(this), false );
-
-
-
   this.outerBoxSize = outerBoxOptions;
   this.innerBoxSize = innerBoxOptions;
   this.domContainer = document.getElementById(divID);
@@ -83,22 +77,67 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
   this.buildPlane();
   this.initPolygonTriangles();
 
+  // init click and keyboard events
+  this.initKeyEvents();
+
   this.setupLighting();
 
   // initialize the UI (dat.gui)
   this.initGui();
+
+  this.initKeyEvents();
+
+
 
   // just toinitialize in order to update dat.gui field
   this.update();
 
   this.initHelpers();
 
+  this.buildGuiButton("Toggle controls", this.AxisArrowHelperToggle.bind(this));
+
   // animate and update
   this.animate();
 
-
 }
 
+
+
+VolumeNavigator.prototype.initKeyEvents = function(){
+  window.addEventListener( 'mousedown', this.onMouseDown.bind(this), false );
+  window.addEventListener( 'mouseup', this.onMouseUp.bind(this), false );
+  window.addEventListener( 'mousemove', this.onMouseMove.bind(this), false );
+
+  window.addEventListener( 'keyup', this.onKeyDown.bind(this), false );
+}
+
+
+VolumeNavigator.prototype.onKeyDown = function(event){
+  if(typeof this.lastKeyupTimestamp === 'undefined'){
+    this.lastKeyupTimestamp = 0;
+  }
+
+  // we dont consider event that are to fast (prevent keyup from being triggerd twice)
+  if(event.timeStamp - this.lastKeyupTimestamp < 100){
+    return;
+  }
+
+  switch ( event.keyCode ) {
+    // space bar
+    case 32:
+    event.preventDefault();
+    event.stopPropagation();
+
+    this.AxisArrowHelperToggle();
+    break;
+
+    default:
+
+  }
+
+  this.lastKeyupTimestamp = event.timeStamp;
+
+}
 
 /*
   The callback cb will be called when a slider from is moving
@@ -405,7 +444,6 @@ VolumeNavigator.prototype.setupLighting = function(){
     Render the scene
 */
 VolumeNavigator.prototype.render = function(){
-  //this.updateRaycaster();
   this.controls.update();
   this.renderer.render(this.scene, this.camera);
 }
@@ -1421,7 +1459,6 @@ VolumeNavigator.prototype.initHelpers = function(){
   var length = this.boxDiagonal / 10;
   var headLength = length * 0.5;
   var headWidth =  length * 0.4;
-  console.log(headWidth);
 
   var xColor = 0xff0000;
   var yColor = 0x00ff00;
@@ -1444,6 +1481,23 @@ VolumeNavigator.prototype.initHelpers = function(){
 
 }
 
+
+/*
+  Hide or show the axis arrow helper
+*/
+VolumeNavigator.prototype.AxisArrowHelperToggle = function(){
+
+  if(this.helpers.polygonCenterArrows[0].visible){
+    this.helpers.polygonCenterArrows[0].visible = false;
+    this.helpers.polygonCenterArrows[1].visible = false
+    this.helpers.polygonCenterArrows[2].visible = false
+  }else{
+    this.helpers.polygonCenterArrows[0].visible = true;
+    this.helpers.polygonCenterArrows[1].visible = true
+    this.helpers.polygonCenterArrows[2].visible = true
+  }
+
+}
 
 /*
   change the origin of the arrow helpers
@@ -1514,12 +1568,11 @@ VolumeNavigator.prototype.updateMousePosition = function(event){
 
 */
 VolumeNavigator.prototype.onMouseDown = function(event){
-  console.log('DOWN');
 
   if(this.isMouseWithinCanvas(event)){
 
     this.updateMousePosition(event);
-    this.updateRaycaster();
+    this.updateAxisRaycaster();
   }
 
 }
@@ -1613,9 +1666,14 @@ VolumeNavigator.prototype.onMouseMove = function(event){
 
 
 /*
-
+  Called by a mouseDown event. Launch a raycaster to each arrow axis helper (the one used for translating the plane)
 */
-VolumeNavigator.prototype.updateRaycaster = function(){
+VolumeNavigator.prototype.updateAxisRaycaster = function(){
+  // if the axis helper are hidden, we dont go further
+  if(!this.helpers.polygonCenterArrows[0].visible){
+    return;
+  }
+
   // update the picking ray with the camera and mouse position
 	this.raycaster.setFromCamera( this.mouse, this.camera );
 
