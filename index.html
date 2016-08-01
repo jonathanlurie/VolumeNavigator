@@ -13,12 +13,12 @@ https://aerotwist.com/tutorials/getting-started-with-three-js/
   <script src="js-lib/three.js"></script>
   <script src="js-lib/OrbitControls.js"></script>
   <script src="js/VolumeNavigator.js"></script>
-  <script src="js/VectorTools2.js"></script>
+  <script src="js/VectorTools.js"></script>
 
   <style>
   body{
     margin: none;
-    background-color: #FFF;
+    background-color: #EEE;
 
     font-family: sans-serif;
     color: #AAA;
@@ -82,6 +82,8 @@ https://aerotwist.com/tutorials/getting-started-with-three-js/
 
   </p>
 
+
+
   <div id="container"></div>
 
 
@@ -110,6 +112,7 @@ https://aerotwist.com/tutorials/getting-started-with-three-js/
   // optional: this callback is called when a slider is moving (mouse down)
   vn.setOnChangeCallback(function(){
     //console.log("change!");
+    //vn.mapTextureFromCanvas();
   });
 
   // optional: this callback is called when a slider is released (mouse up)
