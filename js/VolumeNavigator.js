@@ -10,8 +10,15 @@
 var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
   this.raycaster = new THREE.Raycaster();
   this.mouse = new THREE.Vector2();
-  this.objectGrabed = false;
-  this.currentGrabPosition = new THREE.Vector3();
+
+  // relate to grabbing an object (circle helper or arrow)
+  this.objectGrabed = {
+    isGrabed: false,
+    object: null,
+    currentGrabPosition: new THREE.Vector3(),
+    axis: [0, 0, 0], // each is a factor so should be 0 or 1
+    translatioOrRotation: 0 // 0:tranlation 1:rotation
+  };
 
   this.outerBoxSize = outerBoxOptions;
   this.innerBoxSize = innerBoxOptions;
@@ -234,7 +241,7 @@ VolumeNavigator.prototype.buildInnerBox = function(){
     //this.scene.add( innerBoxMesh );
 
     // adding the wireframe provide better understanding of the scene
-    var helper = new THREE.EdgesHelper( innerBoxMesh, 0x7E2FB4 );
+    var helper = new THREE.EdgesHelper( innerBoxMesh, 0xDAB0F7 );
     this.scene.add( helper );
 
 }
@@ -358,7 +365,7 @@ VolumeNavigator.prototype.buildPlaneFromNormalAndPoint = function(vector, point)
   // material
   this.plane.material = new THREE.MeshLambertMaterial( {
       transparent: true,
-      opacity: 0.05,
+      opacity: 0.1,
       color: 0xFF0000,
       emissive: 0x000000,    // darkest color
       depthWrite: true,
@@ -368,8 +375,8 @@ VolumeNavigator.prototype.buildPlaneFromNormalAndPoint = function(vector, point)
 
   this.plane.geometry = new THREE.Geometry();
 
-  var planeSideSize = 0.01; //this.boxDiagonal;
-  //var planeSideSize = this.boxDiagonal;
+  //var planeSideSize = 0.01; //this.boxDiagonal;
+  var planeSideSize = this.boxDiagonal;
   // vertice declaration
   // 0
   this.plane.geometry.vertices.push(
@@ -688,6 +695,8 @@ VolumeNavigator.prototype.buildGuiList = function(listName, list, callback){
   Update few things: equation, normal, point, hitpoint
 */
 VolumeNavigator.prototype.update = function(){
+  //this.updatePlaneFromGimbalAndArrows();
+
   // update values related to plane equation, normal vector and plane point
   this.updatePlaneEquation();
 
@@ -703,7 +712,6 @@ VolumeNavigator.prototype.update = function(){
   // draw a sphere at each vertex of the intersection polygon
   this.updateHitPointSpheres();
 
-  //this.initHelpers();
 }
 
 
@@ -1486,9 +1494,9 @@ VolumeNavigator.prototype.initHelpers = function(){
   var geometryX = new THREE.CircleGeometry( this.boxDiagonal / 2, 64 );
   var geometryY = new THREE.CircleGeometry( this.boxDiagonal / 2, 64 );
   var geometryZ = new THREE.CircleGeometry( this.boxDiagonal / 2, 64 );
-  var materialX = new THREE.LineBasicMaterial( { color: xColor } );
-  var materialY = new THREE.LineBasicMaterial( { color: yColor } );
-  var materialZ = new THREE.LineBasicMaterial( { color: zColor } );
+  var materialX = new THREE.LineBasicMaterial( { color: xColor, linewidth:5 } );
+  var materialY = new THREE.LineBasicMaterial( { color: yColor, linewidth:5 } );
+  var materialZ = new THREE.LineBasicMaterial( { color: zColor, linewidth:5 } );
   // remove inner vertice
   geometryX.vertices.shift();
   geometryY.vertices.shift();
@@ -1499,10 +1507,10 @@ VolumeNavigator.prototype.initHelpers = function(){
 
   // X circle
   var circleX = new THREE.Line( geometryX, materialX );
-  circleX.rotateY(Math.PI / 2)
+  geometryX.rotateY(Math.PI / 2)
   // Y circle
   var circleY = new THREE.Line( geometryY, materialY );
-  circleY.rotateX(Math.PI / 2)
+  geometryY.rotateX(-Math.PI / 2)
   // Z circle
   var circleZ = new THREE.Line( geometryZ, materialZ );
 
@@ -1513,6 +1521,8 @@ VolumeNavigator.prototype.initHelpers = function(){
   this.helpers.circles.translateOnAxis(origin.normalize(),  this.boxDiagonal / 2 );
   this.scene.add( this.helpers.circles );
 
+  // just to test
+  //this.helpers.circles.rotateOnAxis ( origin.normalize(), Math.PI / 4 )
 
 
 }
@@ -1552,8 +1562,10 @@ VolumeNavigator.prototype.translateArrowHelpers = function(deltaCoord){
   this.helpers.polygonCenterArrows[2].position.y += deltaCoord[1];
   this.helpers.polygonCenterArrows[2].position.z += deltaCoord[2];
 
+  // update circle helper position
+  this.helpers.circles.position.copy(this.helpers.polygonCenterArrows[0].position);
 
-  this.translatePlane(deltaCoord);
+  //this.translatePlane(deltaCoord);
 }
 
 
@@ -1607,11 +1619,11 @@ VolumeNavigator.prototype.onMouseUp = function(event){
   var endGrabPosition = new THREE.Vector3(this.mouse.x, this.mouse.y, 1);
   endGrabPosition.unproject(this.camera);
 
-  if(this.objectGrabed){
+  if(this.objectGrabed.isGrabed){
     // restore the view we had before grabbing axis arrows (should not be necessary but I suspect a bug in OrbitControlJS)
     this.restoreOrbitData();
 
-    this.objectGrabed = false;
+    this.objectGrabed.isGrabed = false;
     // disable the controls
     this.controls.enabled = true;
 
@@ -1623,10 +1635,10 @@ VolumeNavigator.prototype.onMouseUp = function(event){
 }
 
 
-VolumeNavigator.prototype.onMouseMove = function(event){
+VolumeNavigator.prototype.onMouseMove_ORIG = function(event){
 
   // if no object is grabbed, we dont do anything
-  if(!this.objectGrabed){
+  if(!this.objectGrabed.isGrabed){
     return;
   }
 
@@ -1647,9 +1659,9 @@ VolumeNavigator.prototype.onMouseMove = function(event){
     );
 
     if(intersects.length){
-      var deltaMove = intersects[0].point.x -this.currentGrabPosition.x;
+      var deltaMove = intersects[0].point.x -this.objectGrabed.currentGrabPosition.x;
       this.translateArrowHelpers([deltaMove, 0, 0])
-      this.currentGrabPosition.x = intersects[0].point.x;
+      this.objectGrabed.currentGrabPosition.x = intersects[0].point.x;
       axisIsMoved = true;
     }
 
@@ -1661,9 +1673,9 @@ VolumeNavigator.prototype.onMouseMove = function(event){
       );
 
       if(intersects.length){
-        var deltaMove = intersects[0].point.y -this.currentGrabPosition.y;
+        var deltaMove = intersects[0].point.y -this.objectGrabed.currentGrabPosition.y;
         this.translateArrowHelpers([0, deltaMove, 0])
-        this.currentGrabPosition.y = intersects[0].point.y;
+        this.objectGrabed.currentGrabPosition.y = intersects[0].point.y;
         axisIsMoved = true;
       }
     }
@@ -1676,19 +1688,112 @@ VolumeNavigator.prototype.onMouseMove = function(event){
       );
 
       if(intersects.length){
-        var deltaMove = intersects[0].point.z -this.currentGrabPosition.z;
+        var deltaMove = intersects[0].point.z -this.objectGrabed.currentGrabPosition.z;
         this.translateArrowHelpers([0, 0, deltaMove])
-        this.currentGrabPosition.z = intersects[0].point.z;
+        this.objectGrabed.currentGrabPosition.z = intersects[0].point.z;
         axisIsMoved = true;
       }
     }
 
+    // one axis at a time to prevent confusion
+    if(!axisIsMoved){
+      // intersect with circles to perform a rotation
+      var intersects = tmpRaycaster.intersectObjects(
+        this.helpers.circles.children
+      );
+
+      if(intersects.length){
+        this.rotateCircleHelpers(
+          intersects[0].object,
+          this.objectGrabed.currentGrabPosition,
+          intersects[0].point
+        );
+        this.objectGrabed.currentGrabPosition.copy(intersects[0].point);
+        axisIsMoved = true;
+      }
+
+    }
 
     if(axisIsMoved && this.onChangeCallback){
       this.onChangeCallback();
     }
 
-    //console.log(vector);
+  }
+
+}
+
+
+
+
+VolumeNavigator.prototype.onMouseMove = function(event){
+  // if no object is grabbed, we dont do anything
+  if(!this.objectGrabed.isGrabed){
+    return;
+  }
+
+  if(this.isMouseWithinCanvas(event)){
+    this.updateMousePosition(event);
+
+    // computing the move length
+    var vector = new THREE.Vector3( this.mouse.x, this.mouse.y, 0.5 );
+    vector.unproject(this.camera)
+    vector.sub( this.camera.position).normalize();
+    var tmpRaycaster = new THREE.Raycaster( this.camera.position, vector );
+    var axisIsMoved = false;
+
+    // Did the X axis arrow moved?
+    var intersects = tmpRaycaster.intersectObjects(
+      this.objectGrabed.object.children,
+      true
+    );
+
+    if(intersects.length){
+
+      switch (this.objectGrabed.translatioOrRotation) {
+
+        // this is a tranlation
+        case 0:
+          var deltaMove = [
+            intersects[0].point.x -this.objectGrabed.currentGrabPosition.x,
+            intersects[0].point.y -this.objectGrabed.currentGrabPosition.y,
+            intersects[0].point.z -this.objectGrabed.currentGrabPosition.z
+          ];
+
+          this.translateArrowHelpers([
+            deltaMove[0] * this.objectGrabed.axis[0],
+            deltaMove[1] * this.objectGrabed.axis[1],
+            deltaMove[2] * this.objectGrabed.axis[2]
+          ]);
+
+          this.objectGrabed.currentGrabPosition.copy(intersects[0].point);
+          axisIsMoved = true;
+          break;
+
+
+        // this is a rotation
+        case 1:
+          this.rotateCircleHelpers(
+            this.objectGrabed.currentGrabPosition,
+            intersects[0].point
+          );
+          this.objectGrabed.currentGrabPosition.copy(intersects[0].point);
+          axisIsMoved = true;
+          break;
+        default:
+
+      }
+    }
+
+
+    if(axisIsMoved){
+      this.updatePlaneFromGimbalAndArrows();
+      this.update();
+
+      if(this.onChangeCallback){
+        this.onChangeCallback();
+      }
+    }
+
 
   }
 
@@ -1706,7 +1811,6 @@ VolumeNavigator.prototype.updateAxisRaycaster = function(){
 
   // update the picking ray with the camera and mouse position
 	this.raycaster.setFromCamera( this.mouse, this.camera );
-
   var hit = false;
 
   // retrieve intersection with the X axis arrow
@@ -1714,7 +1818,10 @@ VolumeNavigator.prototype.updateAxisRaycaster = function(){
 
   if(intersectsArrowX.length){
     hit = true;
-    this.currentGrabPosition.copy(intersectsArrowX[0].point)
+    this.objectGrabed.currentGrabPosition.copy(intersectsArrowX[0].point);
+    this.objectGrabed.object = this.helpers.polygonCenterArrows[0];
+    this.objectGrabed.translatioOrRotation = 0;
+    this.objectGrabed.axis = [1, 0, 0];
   }
 
   // retrieve intersection with the Y axis arrow
@@ -1722,7 +1829,10 @@ VolumeNavigator.prototype.updateAxisRaycaster = function(){
 
   if(intersectsArrowY.length){
     hit = true;
-    this.currentGrabPosition.copy(intersectsArrowY[0].point)
+    this.objectGrabed.currentGrabPosition.copy(intersectsArrowY[0].point);
+    this.objectGrabed.object = this.helpers.polygonCenterArrows[1];
+    this.objectGrabed.translatioOrRotation = 0;
+    this.objectGrabed.axis = [0, 1, 0];
   }
 
   // retrieve intersection with the Z axis arrow
@@ -1730,20 +1840,35 @@ VolumeNavigator.prototype.updateAxisRaycaster = function(){
 
   if(intersectsArrowZ.length){
     hit = true;
-    this.currentGrabPosition.copy(intersectsArrowZ[0].point)
+    this.objectGrabed.currentGrabPosition.copy(intersectsArrowZ[0].point);
+    this.objectGrabed.object = this.helpers.polygonCenterArrows[2];
+    this.objectGrabed.translatioOrRotation = 0;
+    this.objectGrabed.axis = [0, 0, 1];
   }
 
-
-  var intersectsArrowCircles = this.raycaster.intersectObjects( this.helpers.circles.children );
-
+  // intersection with a circle? (for rotation)
+  var intersectsArrowCircles = this.raycaster.intersectObjects(this.helpers.circles.children );
 
   if(intersectsArrowCircles.length){
-    console.log(intersectsArrowCircles);
+    console.log("inters");
+    this.objectGrabed.currentGrabPosition.copy(intersectsArrowCircles[0].point);
+    this.objectGrabed.object = this.helpers.circles;
+    this.objectGrabed.translatioOrRotation = 1;
+    hit = true;
+    var objectName = intersectsArrowCircles[0].object.geometry.name;
+
+    if(objectName == "xCircle")
+      this.objectGrabed.axis = [1, 0, 0];
+    else if (objectName == "yCircle")
+      this.objectGrabed.axis = [0, 1, 0];
+    else if (objectName == "zCircle")
+      this.objectGrabed.axis = [0, 0, 1];
+
   }
 
   // in any case of hit...
   if(hit){
-    this.objectGrabed = true;
+    this.objectGrabed.isGrabed = true;
     this.controls.enabled = false;
     this.saveOrbitData();
   }
@@ -1774,4 +1899,105 @@ VolumeNavigator.prototype.restoreOrbitData = function(){
   this.controls.target0.copy(this.orbitData.target);
   this.controls.zoom0 = this.orbitData.zoom;
   this.controls.reset();
+}
+
+
+/*
+  makes everything rotate thanks to the circle helper.
+  args:
+    circleObject: Object3D - one of the 3 circle from this.helpers.circles
+    prevPos: Vector3 - position of the mouse before moving
+    newPos: Vector3 - position of the mouse after moving (or rather while moving)
+*/
+VolumeNavigator.prototype.rotateCircleHelpers = function(prevPos, newPos){
+  var circleObject = this.objectGrabed.object;
+
+  //console.log(circleObject);
+  if(prevPos.x == newPos.x && prevPos.y == newPos.y && prevPos.z == newPos.z){
+    return;
+  }
+
+  // find the child index using this.objectGrabed.axis is a bit cumbersome but it keeps the
+  // compatibility of this.objectGrabed for tranlation
+  var circleObject = this.objectGrabed.object.children[ this.objectGrabed.axis.indexOf(1) ];
+
+  // the rotation axis we want is the normal of the disk
+  // the NoRot vector is the normal vector before the group was rotated
+  var normalVectorNoRot = new THREE.Vector3().copy(circleObject.geometry.faces[0].normal);
+  var center = new THREE.Vector3().copy(this.helpers.circles.position)
+
+  // vector from center to prevPos
+  var c2pp = new THREE.Vector3().subVectors(prevPos, center).normalize();
+
+  // vector from center to newPos
+  var c2np = new THREE.Vector3().subVectors(newPos, center).normalize();
+
+  // gives the cosine
+  var angleCos = c2pp.dot(c2np);
+
+  // it also gives a normal vector (will help to figure the direction of the angle)
+  var crossProd = new THREE.Vector3().crossVectors(c2pp, c2np).normalize();
+
+  // Apply a rotation to the normal vector (the same as this.helpers.circles)
+  var circleQuaternion = new THREE.Quaternion().copy(this.helpers.circles.quaternion);
+  var normalVector = new THREE.Vector3().copy(normalVectorNoRot);
+  normalVector.applyQuaternion(circleQuaternion).normalize(); // should already be...
+
+  var positivity = normalVector.dot(crossProd) < 0? -1:1;
+  var angle = Math.acos(angleCos) * positivity;
+
+
+  // the metods rotateOnAxis takes in consideration the internal quaternion
+  // (no need to tune that manually, like I was trying to...)
+  this.helpers.circles.rotateOnAxis( normalVectorNoRot, angle )
+
+}
+
+
+/*
+  the disc turning around z axis is oriented as our plane, thus we use it to
+  to define the normal of the plane.
+*/
+VolumeNavigator.prototype.getGimbalNormalZ = function(){
+
+  // the 3rd child is the z disc
+  var circleQuaternion = new THREE.Quaternion().copy(this.helpers.circles.quaternion);
+  var normalVector = new THREE.Vector3().copy(
+    this.helpers.circles.children[2].geometry.faces[0].normal
+  );
+  normalVector.applyQuaternion(circleQuaternion).normalize(); // should already be..
+
+  return [
+    normalVector.x,
+    normalVector.y,
+    normalVector.z
+  ];
+
+}
+
+
+/*
+  return the center of the arrow helper system,
+  which is also the center of the gimbal
+*/
+VolumeNavigator.prototype.getCenterFromHelper = function(){
+  var center = this.helpers.polygonCenterArrows[0].position;
+
+  return [
+    center.x,
+    center.y,
+    center.z
+  ];
+}
+
+
+/*
+  update the main plane (red square) with the center and
+  the normal vector of the gimbal.
+*/
+VolumeNavigator.prototype.updatePlaneFromGimbalAndArrows = function(){
+  var normal = this.getGimbalNormalZ();
+  var center = this.getCenterFromHelper();
+
+  this.buildPlaneFromNormalAndPoint(normal, center);
 }
