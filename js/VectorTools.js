@@ -121,6 +121,46 @@ VectorTools.prototype.rotate = function(v, m){
   return vRot;
 }
 
+
+/*
+  compute the angle p1p2p3 in radians.
+  Does not give the sign, just absolute angle!
+  args:
+    p1, p2, p3: array [x, y, z] - 3D coordinate of each point
+*/
+VectorTools.prototype.getAnglePoints = function(p1, p2, p3){
+
+  //  the configuration is somthing like that:
+  //
+  //  p1-----p2
+  //        /
+  //       /
+  //      p3
+
+  var v_p2p1 = [
+    p1[0] - p2[0],
+    p1[1] - p2[1],
+    p1[2] - p2[2],
+  ];
+
+  var v_p2p3 = [
+    p3[0] - p2[0],
+    p3[1] - p2[1],
+    p3[2] - p2[2],
+  ];
+
+  // normalizing those vectors
+  v_p2p1 = this.normalize(v_p2p1);
+  v_p2p3 = this.normalize(v_p2p3);
+
+  var cosine = this.dotProduct(v_p2p1, v_p2p3);
+  var angleRad = Math.acos(cosine);
+
+  return angleRad;
+
+}
+
+
 // export as a module in case of use with nodejs
 if(typeof module !== 'undefined' && typeof module.exports !== 'undefined')
   module.exports = VectorTools;

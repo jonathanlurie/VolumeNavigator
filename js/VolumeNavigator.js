@@ -17,7 +17,8 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
     object: null,
     currentGrabPosition: new THREE.Vector3(),
     axis: [0, 0, 0], // each is a factor so should be 0 or 1
-    translatioOrRotation: 0 // 0:tranlation 1:rotation
+    translatioOrRotation: 0, // 0:tranlation 1:rotation
+    previousMouse: new THREE.Vector2()
   };
 
   this.outerBoxSize = outerBoxOptions;
@@ -315,6 +316,8 @@ VolumeNavigator.prototype.buildPlaneFromNormalAndPoint = function(vector, point)
   // aligned with the referential
   var p2 = null;
 
+  console.log(n);
+
   // case 1
   if(n.z != 0){
     var x2 = p1.x + 1;
@@ -343,19 +346,17 @@ VolumeNavigator.prototype.buildPlaneFromNormalAndPoint = function(vector, point)
   if(!p2 || !p1)
     return;
 
+
+
   // unit vectors:
   var u = new THREE.Vector3().subVectors(p2, p1).normalize();
   var v = new THREE.Vector3().crossVectors(u, n).normalize();
 
   // remove the plane from the scene to RE-build it
   if(this.plane){
-    console.log("rebuild the plane");
-      this.scene.remove( this.plane.mesh );
+    //console.log("rebuild the plane");
+    this.scene.remove( this.plane.mesh );
   }
-
-  console.log("----------");
-  console.log(u);
-  console.log(v);
 
   if(this.guiValue){
     this.guiValue.current.xTrans = point[0];
@@ -1526,10 +1527,6 @@ VolumeNavigator.prototype.initHelpers = function(){
   this.helpers.circles.translateOnAxis(origin.normalize(),  this.boxDiagonal / 2 );
   this.scene.add( this.helpers.circles );
 
-  // just to test
-  //this.helpers.circles.rotateOnAxis ( origin.normalize(), Math.PI / 4 )
-
-
 }
 
 
@@ -1625,6 +1622,11 @@ VolumeNavigator.prototype.updateMousePosition = function(event){
 
   this.mouse.x = ( (event.clientX - this.domContainer.offsetLeft) / this.domContainer.offsetWidth ) * 2 - 1;
   this.mouse.y = - ( (event.clientY - this.domContainer.offsetTop + scrollTop) / this.domContainer.offsetHeight ) * 2 + 1;
+
+
+
+  this.getScreenCoord(this.getCenterFromHelper(), true);
+
 }
 
 
@@ -1667,8 +1669,9 @@ VolumeNavigator.prototype.onMouseUp = function(event){
 }
 
 
-
-
+/*
+  Callback when the mouse mouves
+*/
 VolumeNavigator.prototype.onMouseMove = function(event){
   // if no object is grabbed, we dont do anything
   if(!this.objectGrabed.isGrabed){
@@ -1678,11 +1681,121 @@ VolumeNavigator.prototype.onMouseMove = function(event){
   if(this.isMouseWithinCanvas(event)){
     this.updateMousePosition(event);
 
+    // Mouse is supposed to have moved but sometimes the values are the same...
+    if(this.objectGrabed.previousMouse.x == this.mouse.x &&
+       this.objectGrabed.previousMouse.y == this.mouse.y){
+      return;
+    }
+
+    // Tranlation or rotation?
+    switch (this.objectGrabed.translatioOrRotation) {
+      // this is a tranlation...
+      case 0:
+        console.log("not implemented yet");
+        break;
+
+      // this is a rotation...
+      case 1:
+        this.mouseMoveRotation();
+        break;
+      default:
+
+    }
+
+
+    this.update();
+    this.objectGrabed.previousMouse.copy(this.mouse);
+
+    if(this.onChangeCallback){
+      this.onChangeCallback();
+    }
+
+  }
+}
+
+
+/*
+  called by onMouseMove when we are dealing with a rotation
+*/
+VolumeNavigator.prototype.mouseMoveRotation = function(event){
+
+  // get the helper origin in 2D [-1, 1] range
+  var helperCenter2D = this.getScreenCoord(this.getCenterFromHelper(), true);
+
+  // angle previousPos -> center -> newPos
+  var angle = this.vectorTools.getAnglePoints(
+    [this.objectGrabed.previousMouse.x, this.objectGrabed.previousMouse.y, 0],
+    helperCenter2D,
+    [this.mouse.x, this.mouse.y, 0]
+  );
+
+  // v1 goes from center to previous mouse pos
+  var v1 = [
+    this.objectGrabed.previousMouse.x - helperCenter2D[0],
+    this.objectGrabed.previousMouse.y - helperCenter2D[1],
+    0
+  ];
+
+  // v2 goes from center to current mouse pos
+  var v2 = [
+    this.mouse.x - helperCenter2D[0],
+    this.mouse.y - helperCenter2D[1],
+    0
+  ];
+
+  var crossP = this.vectorTools.crossProduct(v2, v1, true);
+
+  // vector from camera to gimbal center
+  var cameraToGimbal = new THREE.Vector3().subVectors(
+    this.objectGrabed.object.position,
+    this.camera.position
+  ).normalize();
+
+  var axisIndex = this.objectGrabed.axis.indexOf(1);
+
+  var normalVector = this.getGimbalNormalVector(axisIndex);
+  var dotProd = normalVector.dot(cameraToGimbal);
+
+
+  // the finale angle is the angle but with a decision over the sign of it
+  var finalAngle = angle * crossP[2] * (dotProd>0?1:-1);
+
+  this.rotateCircleHelpers2(finalAngle, axisIndex);
+}
+
+
+/*
+  return the normal vector of one of the disc that compose the gimbal.
+  The hardcoded normal vector does not take into consideration the rotation
+  of the gimbal, thus we need a method for that. (returns a copy)
+*/
+VolumeNavigator.prototype.getGimbalNormalVector = function(axis){
+  var circleQuaternion = new THREE.Quaternion().copy(this.helpers.circles.quaternion);
+  var normalVector = new THREE.Vector3()
+    .copy(this.objectGrabed.object.children[axis].geometry.faces[0].normal);
+
+  normalVector.applyQuaternion(circleQuaternion).normalize();
+
+  return normalVector;
+}
+
+
+/*
+  TODO: remove
+  Callback when the mouse mouves
+*/
+VolumeNavigator.prototype.onMouseMove_ORIG2 = function(event){
+  // if no object is grabbed, we dont do anything
+  if(!this.objectGrabed.isGrabed){
+    return;
+  }
+
+  if(this.isMouseWithinCanvas(event)){
+    this.updateMousePosition(event);
+
     // computing the move length
-    var vector = new THREE.Vector3( this.mouse.x, this.mouse.y, 0.5 );
-    vector.unproject(this.camera)
-    vector.sub( this.camera.position).normalize();
-    var tmpRaycaster = new THREE.Raycaster( this.camera.position, vector );
+    var tmpRaycaster = new THREE.Raycaster();
+    tmpRaycaster.setFromCamera( this.mouse, this.camera );
     var axisIsMoved = false;
 
     // Did the X axis arrow moved?
@@ -1692,7 +1805,6 @@ VolumeNavigator.prototype.onMouseMove = function(event){
     );
 
     if(intersects.length){
-
       switch (this.objectGrabed.translatioOrRotation) {
 
         // this is a tranlation
@@ -1713,7 +1825,6 @@ VolumeNavigator.prototype.onMouseMove = function(event){
           axisIsMoved = true;
           break;
 
-
         // this is a rotation
         case 1:
           this.rotateCircleHelpers(
@@ -1728,19 +1839,14 @@ VolumeNavigator.prototype.onMouseMove = function(event){
       }
     }
 
-
     if(axisIsMoved){
-
       this.update();
 
       if(this.onChangeCallback){
         this.onChangeCallback();
       }
     }
-
-
   }
-
 }
 
 
@@ -1812,6 +1918,7 @@ VolumeNavigator.prototype.updateAxisRaycaster = function(){
 
   // in any case of hit...
   if(hit){
+    this.objectGrabed.previousMouse.copy(this.mouse);
     this.objectGrabed.isGrabed = true;
     this.controls.enabled = false;
     this.saveOrbitData();
@@ -1847,6 +1954,7 @@ VolumeNavigator.prototype.restoreOrbitData = function(){
 
 
 /*
+  TODO: REMOVE
   makes everything rotate thanks to the circle helper.
   args:
     circleObject: Object3D - one of the 3 circle from this.helpers.circles
@@ -1903,6 +2011,25 @@ VolumeNavigator.prototype.rotateCircleHelpers = function(prevPos, newPos){
 
 
 /*
+  axis is 0 for x, 1 for y and 2 for z
+*/
+VolumeNavigator.prototype.rotateCircleHelpers2 = function(angle, axis){
+  var circleObject = this.objectGrabed.object.children[ axis ];
+
+  // the rotation axis we want is the normal of the disk
+  // the NoRot vector is the normal vector before the group was rotated
+  var normalVectorNoRot = new THREE.Vector3().copy(circleObject.geometry.faces[0].normal);
+
+  // the metods rotateOnAxis takes in consideration the internal quaternion
+  // (no need to tune that manually, like I was trying to...)
+  this.helpers.circles.rotateOnAxis( normalVectorNoRot, angle );
+
+  // rotate the plane accordingly
+  this.updatePlaneFromGimbalAndArrows();
+}
+
+
+/*
   the disc turning around z axis is oriented as our plane, thus we use it to
   to define the normal of the plane.
 */
@@ -1944,17 +2071,17 @@ VolumeNavigator.prototype.getCenterFromHelper = function(){
   the normal vector of the gimbal.
 */
 VolumeNavigator.prototype.updatePlaneFromGimbalAndArrows = function(){
-  var normal = this.getGimbalNormalZ();
+  //var normal = this.getGimbalNormalZ();
+  var normal = this.getGimbalNormalVector(2);
   var center = this.getCenterFromHelper();
-
-  console.log(center);
-
-  this.buildPlaneFromNormalAndPoint(normal, center);
-
-
+  this.buildPlaneFromNormalAndPoint([normal.x, normal.y, normal.z], center);
 }
 
 
+/*
+  moves the helper centers to the center of the polygon
+  (called at mouseup)
+*/
 VolumeNavigator.prototype.placeHelperCenterAtPolygonCenter = function(){
   if(!this.helpers.polygonCenterArrows[0])
     return;
@@ -1975,4 +2102,33 @@ VolumeNavigator.prototype.placeHelperCenterAtPolygonCenter = function(){
 
   // update circle helper position
   this.helpers.circles.position.copy(this.helpers.polygonCenterArrows[0].position);
+}
+
+
+/*
+  return the screen coord [x, y]
+  args:
+    coord3D: Array [x, y, z] - the 3D coodinate to convert
+    normalized: bool - when true, x and y are within [-1, 1]
+      if false, they are in pixel (ie. x[0, 800] and y[0, 600])
+*/
+VolumeNavigator.prototype.getScreenCoord = function(coord3D, normalized){
+
+  var width = this.domContainer.offsetWidth;
+  var height = this.domContainer.offsetHeight;
+
+  var vector = new THREE.Vector3();
+  vector.set( coord3D[0], coord3D[1], coord3D[2] );
+
+  // map to normalized device coordinate (NDC) space
+  vector.project( this.camera );
+
+  if(!normalized){
+    // map to 2D screen space
+    vector.x = (   vector.x + 1 ) * (width  / 2 );
+    vector.y = ( - vector.y + 1 ) * (height / 2 );
+    vector.z = 0;
+  }
+
+  return [vector.x, vector.y, 0];
 }
