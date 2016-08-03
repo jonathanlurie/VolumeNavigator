@@ -339,6 +339,10 @@ VolumeNavigator.prototype.buildPlaneFromNormalAndPoint = function(vector, point)
     p2 = new THREE.Vector3(x2, y2, z2);
   }
 
+  // in case of somthing wrong, we dont want to b
+  if(!p2 || !p1)
+    return;
+
   // unit vectors:
   var u = new THREE.Vector3().subVectors(p2, p1).normalize();
   var v = new THREE.Vector3().crossVectors(u, n).normalize();
@@ -348,6 +352,10 @@ VolumeNavigator.prototype.buildPlaneFromNormalAndPoint = function(vector, point)
     console.log("rebuild the plane");
       this.scene.remove( this.plane.mesh );
   }
+
+  console.log("----------");
+  console.log(u);
+  console.log(v);
 
   if(this.guiValue){
     this.guiValue.current.xTrans = point[0];
@@ -359,13 +367,14 @@ VolumeNavigator.prototype.buildPlaneFromNormalAndPoint = function(vector, point)
     this.guiValue.previous.zTrans = point[2];
   }
 
+
   // the square representing the plan has a side measuring this.boxDiagonal
   this.plane = {};
 
   // material
   this.plane.material = new THREE.MeshLambertMaterial( {
       transparent: true,
-      opacity: 0.1,
+      opacity: 0.01,
       color: 0xFF0000,
       emissive: 0x000000,    // darkest color
       depthWrite: true,
@@ -375,8 +384,8 @@ VolumeNavigator.prototype.buildPlaneFromNormalAndPoint = function(vector, point)
 
   this.plane.geometry = new THREE.Geometry();
 
-  //var planeSideSize = 0.01; //this.boxDiagonal;
-  var planeSideSize = this.boxDiagonal;
+  var planeSideSize = 0.01; //this.boxDiagonal;
+  //var planeSideSize = this.boxDiagonal;
   // vertice declaration
   // 0
   this.plane.geometry.vertices.push(
@@ -414,11 +423,8 @@ VolumeNavigator.prototype.buildPlaneFromNormalAndPoint = function(vector, point)
   this.plane.geometry.faces.push( new THREE.Face3( 0, 1, 2 ) );
   this.plane.geometry.faces.push( new THREE.Face3( 3, 0, 2 ) );
 
-  this.plane.geometry.translate(
-      this.outerBoxSize.xSize / 2,
-      this.outerBoxSize.ySize / 2,
-      this.outerBoxSize.zSize / 2
-  );
+  // move the plane to the right place
+  this.plane.geometry.translate(point[0], point[1], point[2]);
 
   this.plane.geometry.computeFaceNormals();
   this.plane.mesh = new THREE.Mesh( this.plane.geometry, this.plane.material );
@@ -711,7 +717,6 @@ VolumeNavigator.prototype.update = function(){
 
   // draw a sphere at each vertex of the intersection polygon
   this.updateHitPointSpheres();
-
 }
 
 
@@ -1534,13 +1539,21 @@ VolumeNavigator.prototype.initHelpers = function(){
 VolumeNavigator.prototype.AxisArrowHelperToggle = function(){
 
   if(this.helpers.polygonCenterArrows[0].visible){
+    // arrow
     this.helpers.polygonCenterArrows[0].visible = false;
     this.helpers.polygonCenterArrows[1].visible = false
     this.helpers.polygonCenterArrows[2].visible = false
+
+    // circle
+    this.helpers.circles.visible = false;
   }else{
+    // arrow
     this.helpers.polygonCenterArrows[0].visible = true;
-    this.helpers.polygonCenterArrows[1].visible = true
-    this.helpers.polygonCenterArrows[2].visible = true
+    this.helpers.polygonCenterArrows[1].visible = true;
+    this.helpers.polygonCenterArrows[2].visible = true;
+
+    // circle
+    this.helpers.circles.visible = true;
   }
 
 }
@@ -1565,7 +1578,22 @@ VolumeNavigator.prototype.translateArrowHelpers = function(deltaCoord){
   // update circle helper position
   this.helpers.circles.position.copy(this.helpers.polygonCenterArrows[0].position);
 
-  //this.translatePlane(deltaCoord);
+  console.log("MOVE ARROW");
+
+  console.log("deltaCoord");
+  console.log(deltaCoord);
+  this.translatePlane(deltaCoord);
+
+  /*
+  //this.updatePlaneFromGimbalAndArrows();
+  this.update();
+
+  if(this.onChangeCallback){
+    this.onChangeCallback();
+  }
+  */
+
+
 }
 
 
@@ -1614,7 +1642,9 @@ VolumeNavigator.prototype.onMouseDown = function(event){
 }
 
 
+/*
 
+*/
 VolumeNavigator.prototype.onMouseUp = function(event){
   var endGrabPosition = new THREE.Vector3(this.mouse.x, this.mouse.y, 1);
   endGrabPosition.unproject(this.camera);
@@ -1627,97 +1657,11 @@ VolumeNavigator.prototype.onMouseUp = function(event){
     // disable the controls
     this.controls.enabled = true;
 
+    this.placeHelperCenterAtPolygonCenter();
+
     if(this.onFinishChangeCallback){
       this.onFinishChangeCallback();
     }
-  }
-
-}
-
-
-VolumeNavigator.prototype.onMouseMove_ORIG = function(event){
-
-  // if no object is grabbed, we dont do anything
-  if(!this.objectGrabed.isGrabed){
-    return;
-  }
-
-  if(this.isMouseWithinCanvas(event)){
-    this.updateMousePosition(event);
-
-    // computing the move length
-    var vector = new THREE.Vector3( this.mouse.x, this.mouse.y, 0.5 );
-    vector.unproject(this.camera)
-    vector.sub( this.camera.position).normalize();
-    var tmpRaycaster = new THREE.Raycaster( this.camera.position, vector );
-
-    var axisIsMoved = false;
-
-    // Did the X axis arrow moved?
-    var intersects = tmpRaycaster.intersectObjects(
-      this.helpers.polygonCenterArrows[0].children
-    );
-
-    if(intersects.length){
-      var deltaMove = intersects[0].point.x -this.objectGrabed.currentGrabPosition.x;
-      this.translateArrowHelpers([deltaMove, 0, 0])
-      this.objectGrabed.currentGrabPosition.x = intersects[0].point.x;
-      axisIsMoved = true;
-    }
-
-    // one axis at a time to prevent confusion
-    if(!axisIsMoved){
-      // Did the Y axis arrow moved?
-      var intersects = tmpRaycaster.intersectObjects(
-        this.helpers.polygonCenterArrows[1].children
-      );
-
-      if(intersects.length){
-        var deltaMove = intersects[0].point.y -this.objectGrabed.currentGrabPosition.y;
-        this.translateArrowHelpers([0, deltaMove, 0])
-        this.objectGrabed.currentGrabPosition.y = intersects[0].point.y;
-        axisIsMoved = true;
-      }
-    }
-
-    // one axis at a time to prevent confusion
-    if(!axisIsMoved){
-      // Did the Z axis arrow moved?
-      var intersects = tmpRaycaster.intersectObjects(
-        this.helpers.polygonCenterArrows[2].children
-      );
-
-      if(intersects.length){
-        var deltaMove = intersects[0].point.z -this.objectGrabed.currentGrabPosition.z;
-        this.translateArrowHelpers([0, 0, deltaMove])
-        this.objectGrabed.currentGrabPosition.z = intersects[0].point.z;
-        axisIsMoved = true;
-      }
-    }
-
-    // one axis at a time to prevent confusion
-    if(!axisIsMoved){
-      // intersect with circles to perform a rotation
-      var intersects = tmpRaycaster.intersectObjects(
-        this.helpers.circles.children
-      );
-
-      if(intersects.length){
-        this.rotateCircleHelpers(
-          intersects[0].object,
-          this.objectGrabed.currentGrabPosition,
-          intersects[0].point
-        );
-        this.objectGrabed.currentGrabPosition.copy(intersects[0].point);
-        axisIsMoved = true;
-      }
-
-    }
-
-    if(axisIsMoved && this.onChangeCallback){
-      this.onChangeCallback();
-    }
-
   }
 
 }
@@ -1786,7 +1730,7 @@ VolumeNavigator.prototype.onMouseMove = function(event){
 
 
     if(axisIsMoved){
-      this.updatePlaneFromGimbalAndArrows();
+
       this.update();
 
       if(this.onChangeCallback){
@@ -1949,7 +1893,11 @@ VolumeNavigator.prototype.rotateCircleHelpers = function(prevPos, newPos){
 
   // the metods rotateOnAxis takes in consideration the internal quaternion
   // (no need to tune that manually, like I was trying to...)
-  this.helpers.circles.rotateOnAxis( normalVectorNoRot, angle )
+  this.helpers.circles.rotateOnAxis( normalVectorNoRot, angle );
+
+
+  // rotate the plane accordingly
+  this.updatePlaneFromGimbalAndArrows();
 
 }
 
@@ -1999,5 +1947,32 @@ VolumeNavigator.prototype.updatePlaneFromGimbalAndArrows = function(){
   var normal = this.getGimbalNormalZ();
   var center = this.getCenterFromHelper();
 
+  console.log(center);
+
   this.buildPlaneFromNormalAndPoint(normal, center);
+
+
+}
+
+
+VolumeNavigator.prototype.placeHelperCenterAtPolygonCenter = function(){
+  if(!this.helpers.polygonCenterArrows[0])
+    return;
+
+  var polygonCenter = this.getPolygonCenter();
+
+  this.helpers.polygonCenterArrows[0].position.x = polygonCenter[0];
+  this.helpers.polygonCenterArrows[0].position.y = polygonCenter[1];
+  this.helpers.polygonCenterArrows[0].position.z = polygonCenter[2];
+
+  this.helpers.polygonCenterArrows[1].position.x = polygonCenter[0];
+  this.helpers.polygonCenterArrows[1].position.y = polygonCenter[1];
+  this.helpers.polygonCenterArrows[1].position.z = polygonCenter[2];
+
+  this.helpers.polygonCenterArrows[2].position.x = polygonCenter[0];
+  this.helpers.polygonCenterArrows[2].position.y = polygonCenter[1];
+  this.helpers.polygonCenterArrows[2].position.z = polygonCenter[2];
+
+  // update circle helper position
+  this.helpers.circles.position.copy(this.helpers.polygonCenterArrows[0].position);
 }
