@@ -1,11 +1,11 @@
 /*
   Author: Jonathan Lurie
   Institution: McGill University, Montreal Neurological Institute - MCIN
+  Date: started on Jully 2016
   email: lurie.jo2gmail.com
   License: MIT
 
   VolumeNavigator is originally a (fancy) widget for MincNavigator.
-
 */
 var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
   this.raycaster = new THREE.Raycaster();
@@ -69,7 +69,7 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
 
   this.helpers = {
     polygonCenterArrows: [null, null, null],
-    circles: null
+    gimbal: null,
   };
 
   // Array containg each edge (12) equation in space
@@ -96,9 +96,7 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
 
   this.initKeyEvents();
 
-
-
-  // just toinitialize in order to update dat.gui field
+  // just toi nitialize in order to update dat.gui field
   this.update();
 
   this.initHelpers();
@@ -107,7 +105,6 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
 
   // animate and update
   this.animate();
-
 }
 
 
@@ -1496,6 +1493,10 @@ VolumeNavigator.prototype.initHelpers = function(){
   this.scene.add( this.helpers.polygonCenterArrows[1] );
   this.scene.add( this.helpers.polygonCenterArrows[2] );
 
+
+
+
+
   // CIRCLE HELPERS - ROTATION
   var geometryX = new THREE.CircleGeometry( this.boxDiagonal / 2, 64 );
   var geometryY = new THREE.CircleGeometry( this.boxDiagonal / 2, 64 );
@@ -1520,12 +1521,17 @@ VolumeNavigator.prototype.initHelpers = function(){
   // Z circle
   var circleZ = new THREE.Line( geometryZ, materialZ );
 
-  this.helpers.circles = new THREE.Object3D();
-  this.helpers.circles.add(circleX);
-  this.helpers.circles.add(circleY);
-  this.helpers.circles.add(circleZ);
-  this.helpers.circles.translateOnAxis(origin.normalize(),  this.boxDiagonal / 2 );
-  this.scene.add( this.helpers.circles );
+  this.helpers.gimbal = new THREE.Object3D();
+  this.helpers.gimbal.add(circleX);
+  this.helpers.gimbal.add(circleY);
+  this.helpers.gimbal.add(circleZ);
+
+  // DOUBLE SIDE ARROW
+  // TODO
+
+
+  this.helpers.gimbal.translateOnAxis(origin.normalize(),  this.boxDiagonal / 2 );
+  this.scene.add( this.helpers.gimbal );
 
 }
 
@@ -1542,7 +1548,7 @@ VolumeNavigator.prototype.AxisArrowHelperToggle = function(){
     this.helpers.polygonCenterArrows[2].visible = false
 
     // circle
-    this.helpers.circles.visible = false;
+    this.helpers.gimbal.visible = false;
   }else{
     // arrow
     this.helpers.polygonCenterArrows[0].visible = true;
@@ -1550,7 +1556,7 @@ VolumeNavigator.prototype.AxisArrowHelperToggle = function(){
     this.helpers.polygonCenterArrows[2].visible = true;
 
     // circle
-    this.helpers.circles.visible = true;
+    this.helpers.gimbal.visible = true;
   }
 
 }
@@ -1573,7 +1579,7 @@ VolumeNavigator.prototype.translateArrowHelpers = function(deltaCoord){
   this.helpers.polygonCenterArrows[2].position.z += deltaCoord[2];
 
   // update circle helper position
-  this.helpers.circles.position.copy(this.helpers.polygonCenterArrows[0].position);
+  this.helpers.gimbal.position.copy(this.helpers.polygonCenterArrows[0].position);
 
   console.log("MOVE ARROW");
 
@@ -1770,7 +1776,7 @@ VolumeNavigator.prototype.mouseMoveRotation = function(event){
   of the gimbal, thus we need a method for that. (returns a copy)
 */
 VolumeNavigator.prototype.getGimbalNormalVector = function(axis){
-  var circleQuaternion = new THREE.Quaternion().copy(this.helpers.circles.quaternion);
+  var circleQuaternion = new THREE.Quaternion().copy(this.helpers.gimbal.quaternion);
   var normalVector = new THREE.Vector3()
     .copy(this.objectGrabed.object.children[axis].geometry.faces[0].normal);
 
@@ -1897,12 +1903,12 @@ VolumeNavigator.prototype.updateAxisRaycaster = function(){
   }
 
   // intersection with a circle? (for rotation)
-  var intersectsArrowCircles = this.raycaster.intersectObjects(this.helpers.circles.children );
+  var intersectsArrowCircles = this.raycaster.intersectObjects(this.helpers.gimbal.children );
 
   if(intersectsArrowCircles.length){
     console.log("inters");
     this.objectGrabed.currentGrabPosition.copy(intersectsArrowCircles[0].point);
-    this.objectGrabed.object = this.helpers.circles;
+    this.objectGrabed.object = this.helpers.gimbal;
     this.objectGrabed.translatioOrRotation = 1;
     hit = true;
     var objectName = intersectsArrowCircles[0].object.geometry.name;
@@ -1957,7 +1963,7 @@ VolumeNavigator.prototype.restoreOrbitData = function(){
   TODO: REMOVE
   makes everything rotate thanks to the circle helper.
   args:
-    circleObject: Object3D - one of the 3 circle from this.helpers.circles
+    circleObject: Object3D - one of the 3 circle from this.helpers.gimbal
     prevPos: Vector3 - position of the mouse before moving
     newPos: Vector3 - position of the mouse after moving (or rather while moving)
 */
@@ -1976,7 +1982,7 @@ VolumeNavigator.prototype.rotateCircleHelpers = function(prevPos, newPos){
   // the rotation axis we want is the normal of the disk
   // the NoRot vector is the normal vector before the group was rotated
   var normalVectorNoRot = new THREE.Vector3().copy(circleObject.geometry.faces[0].normal);
-  var center = new THREE.Vector3().copy(this.helpers.circles.position)
+  var center = new THREE.Vector3().copy(this.helpers.gimbal.position)
 
   // vector from center to prevPos
   var c2pp = new THREE.Vector3().subVectors(prevPos, center).normalize();
@@ -1990,8 +1996,8 @@ VolumeNavigator.prototype.rotateCircleHelpers = function(prevPos, newPos){
   // it also gives a normal vector (will help to figure the direction of the angle)
   var crossProd = new THREE.Vector3().crossVectors(c2pp, c2np).normalize();
 
-  // Apply a rotation to the normal vector (the same as this.helpers.circles)
-  var circleQuaternion = new THREE.Quaternion().copy(this.helpers.circles.quaternion);
+  // Apply a rotation to the normal vector (the same as this.helpers.gimbal)
+  var circleQuaternion = new THREE.Quaternion().copy(this.helpers.gimbal.quaternion);
   var normalVector = new THREE.Vector3().copy(normalVectorNoRot);
   normalVector.applyQuaternion(circleQuaternion).normalize(); // should already be...
 
@@ -2001,7 +2007,7 @@ VolumeNavigator.prototype.rotateCircleHelpers = function(prevPos, newPos){
 
   // the metods rotateOnAxis takes in consideration the internal quaternion
   // (no need to tune that manually, like I was trying to...)
-  this.helpers.circles.rotateOnAxis( normalVectorNoRot, angle );
+  this.helpers.gimbal.rotateOnAxis( normalVectorNoRot, angle );
 
 
   // rotate the plane accordingly
@@ -2022,7 +2028,7 @@ VolumeNavigator.prototype.rotateCircleHelpers2 = function(angle, axis){
 
   // the metods rotateOnAxis takes in consideration the internal quaternion
   // (no need to tune that manually, like I was trying to...)
-  this.helpers.circles.rotateOnAxis( normalVectorNoRot, angle );
+  this.helpers.gimbal.rotateOnAxis( normalVectorNoRot, angle );
 
   // rotate the plane accordingly
   this.updatePlaneFromGimbalAndArrows();
@@ -2036,9 +2042,9 @@ VolumeNavigator.prototype.rotateCircleHelpers2 = function(angle, axis){
 VolumeNavigator.prototype.getGimbalNormalZ = function(){
 
   // the 3rd child is the z disc
-  var circleQuaternion = new THREE.Quaternion().copy(this.helpers.circles.quaternion);
+  var circleQuaternion = new THREE.Quaternion().copy(this.helpers.gimbal.quaternion);
   var normalVector = new THREE.Vector3().copy(
-    this.helpers.circles.children[2].geometry.faces[0].normal
+    this.helpers.gimbal.children[2].geometry.faces[0].normal
   );
   normalVector.applyQuaternion(circleQuaternion).normalize(); // should already be..
 
@@ -2101,7 +2107,7 @@ VolumeNavigator.prototype.placeHelperCenterAtPolygonCenter = function(){
   this.helpers.polygonCenterArrows[2].position.z = polygonCenter[2];
 
   // update circle helper position
-  this.helpers.circles.position.copy(this.helpers.polygonCenterArrows[0].position);
+  this.helpers.gimbal.position.copy(this.helpers.polygonCenterArrows[0].position);
 }
 
 
