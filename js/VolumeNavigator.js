@@ -23,6 +23,7 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
 
   this.outerBoxSize = outerBoxOptions;
   this.innerBoxSize = innerBoxOptions;
+
   this.domContainer = document.getElementById(divID);
 
   this.boxDiagonal = Math.sqrt(this.outerBoxSize.xSize * this.outerBoxSize.xSize +
@@ -35,7 +36,6 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
       viewAngle: 45,
       near: 0.1,
       far: this.boxDiagonal * 20,
-
   };
 
   // plane equation as (ax + by + cz + d = 0)
@@ -56,21 +56,13 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
   // Used to symbolize the intersections between the plane and the volume
   this.intersectionSpheres = [];
 
-  // declaring it in advance allow to test its instanciation
-  // contains the mesh, geometry and material of the plane
-  this.plane = null;
-  this.arrowHelper = null;
-
   // callback when a slider is moved (still mouse down)
   this.onChangeCallback = null;
 
   // callback when a slider has finished to slide (mouse up)
   this.onFinishChangeCallback = null;
 
-  this.helpers = {
-    polygonCenterArrows: [null, null, null],
-    gimbal: null,
-  };
+  this.gimbal= null;
 
   // Array containg each edge (12) equation in space
   this.cubeEdges = this._getEdgesEquations();
@@ -83,8 +75,12 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
   // build the box context
   this.buildInnerBox();
   this.buildOuterBox();
-  this.buildPlane();
   this.initPolygonTriangles();
+
+  // create the gimbal
+  this.initGimbal();
+
+
 
   // init click and keyboard events
   this.initKeyEvents();
@@ -94,31 +90,31 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
   // initialize the UI (dat.gui)
   this.initGui();
 
-  this.initKeyEvents();
-
   // just toi nitialize in order to update dat.gui field
   this.update();
 
-  this.initGimbal();
-
-  this.buildGuiButton("Toggle controls", this.AxisArrowHelperToggle.bind(this));
 
   // animate and update
   this.animate();
 }
 
 
-
+/*
+  Initialize the mouse and keyboard windows event
+*/
 VolumeNavigator.prototype.initKeyEvents = function(){
   window.addEventListener( 'mousedown', this.onMouseDown.bind(this), false );
   window.addEventListener( 'mouseup', this.onMouseUp.bind(this), false );
   window.addEventListener( 'mousemove', this.onMouseMove.bind(this), false );
-
-  window.addEventListener( 'keyup', this.onKeyDown.bind(this), false );
+  window.addEventListener( 'keyup', this.onKeyUp.bind(this), false );
 }
 
 
-VolumeNavigator.prototype.onKeyDown = function(event){
+/*
+  Keyboard events
+*/
+VolumeNavigator.prototype.onKeyUp = function(event){
+  // To avoid multiple strike at one (part 1)
   if(typeof this.lastKeyupTimestamp === 'undefined'){
     this.lastKeyupTimestamp = 0;
   }
@@ -136,14 +132,13 @@ VolumeNavigator.prototype.onKeyDown = function(event){
 
     this.AxisArrowHelperToggle();
     break;
-
     default:
-
   }
 
+  // To avoid multiple strike at one (part 2)
   this.lastKeyupTimestamp = event.timeStamp;
-
 }
+
 
 /*
   The callback cb will be called when a slider from is moving
@@ -211,42 +206,51 @@ VolumeNavigator.prototype.init = function(){
     Build the inner box (aka. brain within minc) ans displays it on the scene
 */
 VolumeNavigator.prototype.buildInnerBox = function(){
-    this.innerBox = {};
+  this.innerBox = {};
 
-    this.innerBox.material = new THREE.MeshBasicMaterial({
-        color: 0x7E2FB4,
-        wireframe: true,
+  // when null init the inner box as an "outerBox" helper
+  if(!this.innerBoxSize){
+    this.innerBoxSize = {
+      xSize: this.outerBoxSize.xSize - 2,
+      ySize: this.outerBoxSize.ySize - 2,
+      zSize: this.outerBoxSize.zSize - 2,
+      xOrigin: 1,
+      yOrigin: 1,
+      zOrigin: 1
+    }
+  }
 
-    });
+  this.innerBox.material = new THREE.MeshBasicMaterial({
+      color: 0x7E2FB4,
+      wireframe: true,
 
-    // geometry
-    this.innerBox.geometry = new THREE.CubeGeometry(
-        this.innerBoxSize.xSize,
-        this.innerBoxSize.ySize,
-        this.innerBoxSize.zSize
-    );
+  });
 
-    // the corner of the box is at the origin
-    this.innerBox.geometry.translate(
-        this.innerBoxSize.xSize / 2 + this.innerBoxSize.xOrigin,
-        this.innerBoxSize.ySize / 2 + this.innerBoxSize.yOrigin,
-        this.innerBoxSize.zSize / 2 + this.innerBoxSize.zOrigin
-    );
+  // geometry
+  this.innerBox.geometry = new THREE.CubeGeometry(
+      this.innerBoxSize.xSize,
+      this.innerBoxSize.ySize,
+      this.innerBoxSize.zSize
+  );
 
-    var innerBoxMesh = new THREE.Mesh( this.innerBox.geometry, this.innerBox.material )
+  // the corner of the box is at the origin
+  this.innerBox.geometry.translate(
+      this.innerBoxSize.xSize / 2 + this.innerBoxSize.xOrigin,
+      this.innerBoxSize.ySize / 2 + this.innerBoxSize.yOrigin,
+      this.innerBoxSize.zSize / 2 + this.innerBoxSize.zOrigin
+  );
 
-    // add the inner box to scene
-    //this.scene.add( innerBoxMesh );
+  this.innerBox.mesh = new THREE.Mesh( this.innerBox.geometry, this.innerBox.material )
 
-    // adding the wireframe provide better understanding of the scene
-    var helper = new THREE.EdgesHelper( innerBoxMesh, 0xDAB0F7 );
-    this.scene.add( helper );
+  // adding the wireframe provide better understanding of the scene
+  this.innerBox.helper = new THREE.EdgesHelper( this.innerBox.mesh, 0xDAB0F7 );
+  this.scene.add( this.innerBox.helper );
 
 }
 
 
 /*
-    Build the inner box (aka. brain within minc) ans displays it on the scene
+    Build the outer box, with only inner faces visible
 */
 VolumeNavigator.prototype.buildOuterBox = function(){
 
@@ -279,154 +283,8 @@ VolumeNavigator.prototype.buildOuterBox = function(){
 
     // add the outer box to the scene
     this.scene.add( new THREE.Mesh( this.outerBox.geometry, this.outerBox.material ) );
-
 }
 
-
-/*
-    Calls buildPlaneFromNormalAndPoint with default settings
-*/
-VolumeNavigator.prototype.buildPlane = function(){
-
-  this.buildPlaneFromNormalAndPoint(
-    [0, 0, 1],
-    [
-      this.outerBoxSize.xSize / 2,
-      this.outerBoxSize.ySize / 2,
-      this.outerBoxSize.zSize / 2
-    ]
-  );
-}
-
-
-/*
-  rebuild a plane from scratch. May or may not overload the existing one
-*/
-VolumeNavigator.prototype.buildPlaneFromNormalAndPoint = function(vector, point){
-
-  var p1 = new THREE.Vector3(point[0], point[1], point[2]);
-  var n = new THREE.Vector3(vector[0], vector[1], vector[2]).normalize();
-  var d = (-1) * (n.x * p1.x + n.y * p1.y + n.z * p1.z );
-
-  // find another point on the plane...
-  // The next 3 cases are for when a plane is (at least in one of the 3 dimensions)
-  // aligned with the referential
-  var p2 = null;
-
-  // case 1
-  if(n.z != 0){
-    var x2 = p1.x + 1;
-    var y2 = p1.y;
-    var z2 = (-1) * ( (n.x * x2 + n.y * y2 + d) / n.z );
-    p2 = new THREE.Vector3(x2, y2, z2);
-  }
-
-  // case 2
-  if(n.y != 0 && !p2){
-    var x2 = p1.x + 1;
-    var z2 = p1.z;
-    var y2 = (-1) * ( (n.x * x2 + n.z * z2 + d) / n.y );
-    p2 = new THREE.Vector3(x2, y2, z2);
-  }
-
-  // case 3
-  if(n.x != 0 && !p2){
-    var y2 = p1.y + 1;
-    var z2 = p1.z;
-    var x2 =  (-1) * ( (n.y * y2 + n.z * z2 + d) / n.x );
-    p2 = new THREE.Vector3(x2, y2, z2);
-  }
-
-  // in case of somthing wrong, we dont want to b
-  if(!p2 || !p1)
-    return;
-
-
-
-  // unit vectors:
-  var u = new THREE.Vector3().subVectors(p2, p1).normalize();
-  var v = new THREE.Vector3().crossVectors(u, n).normalize();
-
-  // remove the plane from the scene to RE-build it
-  if(this.plane){
-    //console.log("rebuild the plane");
-    this.scene.remove( this.plane.mesh );
-  }
-
-  if(this.guiValue){
-    this.guiValue.current.xTrans = point[0];
-    this.guiValue.current.yTrans = point[1];
-    this.guiValue.current.zTrans = point[2];
-
-    this.guiValue.previous.xTrans = point[0];
-    this.guiValue.previous.yTrans = point[1];
-    this.guiValue.previous.zTrans = point[2];
-  }
-
-
-  // the square representing the plan has a side measuring this.boxDiagonal
-  this.plane = {};
-
-  // material
-  this.plane.material = new THREE.MeshLambertMaterial( {
-      transparent: true,
-      opacity: 0.01,
-      color: 0xFF0000,
-      emissive: 0x000000,    // darkest color
-      depthWrite: true,
-      depthTest: true,
-      side: THREE.DoubleSide,
-  } );
-
-  this.plane.geometry = new THREE.Geometry();
-
-  var planeSideSize = 0.01; //this.boxDiagonal;
-  //var planeSideSize = this.boxDiagonal;
-  // vertice declaration
-  // 0
-  this.plane.geometry.vertices.push(
-    new THREE.Vector3(
-      -(planeSideSize/2) * u.x - (planeSideSize/2) * v.x,
-      -(planeSideSize/2) * u.y - (planeSideSize/2) * v.y,
-      -(planeSideSize/2) * u.z - (planeSideSize/2) * v.z
-    ));
-
-  // 1
-  this.plane.geometry.vertices.push(
-    new THREE.Vector3(
-      (planeSideSize/2) * u.x - (planeSideSize/2) * v.x,
-      (planeSideSize/2) * u.y - (planeSideSize/2) * v.y,
-      (planeSideSize/2) * u.z - (planeSideSize/2) * v.z
-    ));
-
-  // 2
-  this.plane.geometry.vertices.push(
-    new THREE.Vector3(
-      (planeSideSize/2) * u.x + (planeSideSize/2) * v.x,
-      (planeSideSize/2) * u.y + (planeSideSize/2) * v.y,
-      (planeSideSize/2) * u.z + (planeSideSize/2) * v.z
-    ));
-
-  // 3
-  this.plane.geometry.vertices.push(
-    new THREE.Vector3(
-      -(planeSideSize/2) * u.x + (planeSideSize/2) * v.x,
-      -(planeSideSize/2) * u.y + (planeSideSize/2) * v.y,
-      -(planeSideSize/2) * u.z + (planeSideSize/2) * v.z
-    ));
-
-  // creation of triangles from existing vertice (using their index)
-  this.plane.geometry.faces.push( new THREE.Face3( 0, 1, 2 ) );
-  this.plane.geometry.faces.push( new THREE.Face3( 3, 0, 2 ) );
-
-  // move the plane to the right place
-  this.plane.geometry.translate(point[0], point[1], point[2]);
-
-  this.plane.geometry.computeFaceNormals();
-  this.plane.mesh = new THREE.Mesh( this.plane.geometry, this.plane.material );
-  //this.plane.mesh.visible = false;
-  this.scene.add( this.plane.mesh );
-}
 
 
 /*
@@ -472,187 +330,36 @@ VolumeNavigator.prototype.animate = function(){
     Adds the settings available in dat.gui
 */
 VolumeNavigator.prototype.initGui = function(){
-    this.gui = new dat.GUI({ width: 400 });
-    this.guiValue = {};
+  this.gui = new dat.GUI({ width: 400 });
+  this.guiValue = {};
 
-    this.guiValue.current = {
-        xTrans: 0,
-        yTrans: 0,
-        zTrans: 0,
-        xRot  : 0,
-        yRot  : 0,
-        zRot  : 0
-    };
+  this.guiValue.literalPlaneEquation = {
+      literal: ""
+  }
 
-    // a backup so that we can make dif
-    this.guiValue.previous = {
-        xTrans: 0,
-        yTrans: 0,
-        zTrans: 0,
-        xRot  : 0,
-        yRot  : 0,
-        zRot  : 0
-    };
+  this.guiValue.normalVector = {
+      literal: ""
+  }
 
-    this.guiValue.literalPlaneEquation = {
-        literal: ""
-    }
+  this.guiValue.point = {
+      literal: ""
+  }
 
-    this.guiValue.normalVector = {
-        literal: ""
-    }
+  // used later but better to declare here to avoid resetting
+  this.guiValue.customButton = {};
+  this.guiValue.customList = {};
 
-    this.guiValue.point = {
-        literal: ""
-    }
+  var planeInfoFolder = this.gui.addFolder('Plane information');
+  planeInfoFolder.add(this.guiValue.literalPlaneEquation, 'literal').name("Plane equation").listen();
+  planeInfoFolder.add(this.guiValue.normalVector, 'literal').name("Normal vector").listen();
+  planeInfoFolder.add(this.guiValue.point, 'literal').name("Point").listen();
 
-    // used later but better to declare here to avoid resetting
-    this.guiValue.customButton = {};
-    this.guiValue.customList = {};
-
-    var that = this;
-
-    var planeInfoFolder = this.gui.addFolder('Plane information');
-    planeInfoFolder.add(this.guiValue.literalPlaneEquation, 'literal').name("Plane equation").listen();
-    planeInfoFolder.add(this.guiValue.normalVector, 'literal').name("Normal vector").listen();
-    planeInfoFolder.add(this.guiValue.point, 'literal').name("Point").listen();
-
-    // TRANSLATION
-    var planeTransFolder = this.gui.addFolder('Plane translation');
-    planeTransFolder.add(this.guiValue.current, "xTrans", -this.boxDiagonal*1., this.boxDiagonal*1., 1).name("x").listen()
-        .onChange(function(value) {
-
-            that.translatePlane([
-              that.guiValue.previous.xTrans - that.guiValue.current.xTrans,
-              that.guiValue.previous.yTrans - that.guiValue.current.yTrans,
-              that.guiValue.previous.zTrans - that.guiValue.current.zTrans
-            ]);
-
-            that.guiValue.previous.xTrans = value;
-            that.update();
-
-            // calling the callback if defined
-            if(that.onChangeCallback){
-              that.onChangeCallback();
-            }
-
-        })
-        .onFinishChange(function(value) {
-          // calling the callback if defined
-          if(that.onFinishChangeCallback){
-            that.onFinishChangeCallback();
-          }
-        });
-
-    planeTransFolder.add(this.guiValue.current, "yTrans", -this.boxDiagonal*1., this.boxDiagonal*1., 1).name("y").listen()
-        .onChange(function(value) {
-            that.translatePlane([
-              that.guiValue.previous.xTrans - that.guiValue.current.xTrans,
-              that.guiValue.previous.yTrans - that.guiValue.current.yTrans,
-              that.guiValue.previous.zTrans - that.guiValue.current.zTrans
-            ]);
-
-            that.guiValue.previous.yTrans = value;
-            that.update();
-
-            // calling the callback if defined
-            if(that.onChangeCallback){
-              that.onChangeCallback();
-            }
-        })
-        .onFinishChange(function(value) {
-          // calling the callback if defined
-          if(that.onFinishChangeCallback){
-            that.onFinishChangeCallback();
-          }
-        });
-
-    planeTransFolder.add(this.guiValue.current, "zTrans", -this.boxDiagonal*1., this.boxDiagonal*1., 1).name("z").listen()
-        .onChange(function(value) {
-
-            that.translatePlane([
-              that.guiValue.previous.xTrans - that.guiValue.current.xTrans,
-              that.guiValue.previous.yTrans - that.guiValue.current.yTrans,
-              that.guiValue.previous.zTrans - that.guiValue.current.zTrans
-            ]);
-
-            that.guiValue.previous.zTrans = value;
-            that.update();
-
-            // calling the callback if defined
-            if(that.onChangeCallback){
-              that.onChangeCallback();
-            }
-        })
-        .onFinishChange(function(value) {
-          // calling the callback if defined
-          if(that.onFinishChangeCallback){
-            that.onFinishChangeCallback();
-          }
-        });
-
-    // ROTATION
-    var planeRotationFolder = this.gui.addFolder('Plane rotation');
-    planeRotationFolder.add(this.guiValue.current, "xRot", -180, 180).name("x")
-        .onChange(function(value) {
-            dif = that.guiValue.previous.xRot - value;
-            that.rotatePlaneDegree(dif, 0, 0);
-            that.guiValue.previous.xRot = value;
-
-            // calling the callback if defined
-            if(that.onChangeCallback){
-              that.onChangeCallback();
-            }
-        })
-        .onFinishChange(function(value) {
-          // calling the callback if defined
-          if(that.onFinishChangeCallback){
-            that.onFinishChangeCallback();
-          }
-        });
-
-    planeRotationFolder.add(this.guiValue.current, "yRot", -180, 180, 1).name("y")
-        .onChange(function(value) {
-            dif = that.guiValue.previous.yRot - value;
-            that.rotatePlaneDegree(0, dif, 0);
-            that.guiValue.previous.yRot = value;
-
-            // calling the callback if defined
-            if(that.onChangeCallback){
-              that.onChangeCallback();
-            }
-        })
-        .onFinishChange(function(value) {
-          // calling the callback if defined
-          if(that.onFinishChangeCallback){
-            that.onFinishChangeCallback();
-          }
-        });
-
-    planeRotationFolder.add(this.guiValue.current, "zRot", -180, 180, 1).name("z")
-        .onChange(function(value) {
-            dif = that.guiValue.previous.zRot - value;
-            that.rotatePlaneDegree(0, 0, dif);
-            that.guiValue.previous.zRot = value;
-
-            // calling the callback if defined
-            if(that.onChangeCallback){
-              that.onChangeCallback();
-            }
-        })
-        .onFinishChange(function(value) {
-          // calling the callback if defined
-          if(that.onFinishChangeCallback){
-            that.onFinishChangeCallback();
-          }
-        });
-
-
+  this.buildGuiButton("Toggle controls", this.AxisArrowHelperToggle.bind(this));
 }
 
 
 /*
-  Add a button with its callback
+  Add a button with its callback - generic, add as many bt as we want
 */
 VolumeNavigator.prototype.buildGuiButton = function(name, callback){
   this.guiValue.customButton["name"] = name;
@@ -698,7 +405,7 @@ VolumeNavigator.prototype.buildGuiList = function(listName, list, callback){
 */
 VolumeNavigator.prototype.update = function(){
   //this.updatePlaneFromGimbalAndArrows();
-
+  //console.log(this.gimbal);
   // update values related to plane equation, normal vector and plane point
   this.updatePlaneEquation();
 
@@ -774,12 +481,12 @@ VolumeNavigator.prototype.getPlaneEquation = function(){
 
 
 /*
-  get the normal vector of the plane as a array [x, y, z]
+  get the normal vector of the plane as a array [x, y, z].
+  Note: uses the gimbal normal, but does not return a THREE vector3 object
 */
 VolumeNavigator.prototype.getPlaneNormal = function(){
-  var normal = new THREE.Vector3();
-  normal.copy(this.plane.geometry.faces[0].normal);
-  normal.normalize();
+  // we use the normal in z (convention)
+  var normal = this.getGimbalNormalVector(2);
 
   return [normal.x, normal.y, normal.z];
 }
@@ -789,71 +496,35 @@ VolumeNavigator.prototype.getPlaneNormal = function(){
   Get the center point of the plane as an array [x, y, z]
 */
 VolumeNavigator.prototype.getPlanePoint = function(){
-  return [
-      (this.plane.geometry.vertices[0].x +
-      this.plane.geometry.vertices[1].x +
-      this.plane.geometry.vertices[2].x +
-      this.plane.geometry.vertices[3].x) / 4. ,
-
-      (this.plane.geometry.vertices[0].y +
-      this.plane.geometry.vertices[1].y +
-      this.plane.geometry.vertices[2].y +
-      this.plane.geometry.vertices[3].y) / 4. ,
-
-      (this.plane.geometry.vertices[0].z +
-      this.plane.geometry.vertices[1].z +
-      this.plane.geometry.vertices[2].z +
-      this.plane.geometry.vertices[3].z)  / 4.
-  ];
+  return this.getGimbalCenter();
 }
 
 
 /*
+  TODO: translate the gimbal instead
   Define the center point of the red square (symbolizes a point of the plane).
   Along with setPlaneNormal(), it defines the plane equation.
   Args:
     p: Array [x, y, z] - the absolute position to reach
 */
 VolumeNavigator.prototype.setPlanePoint = function(p){
-  var currentPlanePoint = this.getPlanePoint();
 
-  // Translate the plane to origin and then to p
-  this.plane.geometry.translate(
-      -currentPlanePoint[0] + p[0],
-      -currentPlanePoint[1] + p[1],
-      -currentPlanePoint[2] + p[2]
-  );
 
-  this.guiValue.current.xTrans = p[0];
-  this.guiValue.current.yTrans = p[1];
-  this.guiValue.current.zTrans = p[2];
+  if(this._isWithin(p)){
+    this.setGimbalCenter(p);
 
-  this.guiValue.previous.xTrans = p[0];
-  this.guiValue.previous.yTrans = p[1];
-  this.guiValue.previous.zTrans = p[2];
+    // updating equation and its display on dat.gui
+    this.update();
+  }else {
+    console.log("ERROR: The point requested is not in the volume");
+  }
 
-  // updating equation and its display on dat.gui
-  this.update();
 
 }
 
 
 /*
-  translate the plane (red square, possibly invisible)
-*/
-VolumeNavigator.prototype.translatePlane = function(delta){
-  this.plane.geometry.translate(
-      delta[0],
-      delta[1],
-      delta[2]
-  );
-
-  this.update();
-}
-
-
-
-/*
+  TODO: rotate the gimbal instead
   Change the orientation of the plane so that its normal vector is v.
   The center of rotation is the center of the red square that represents the plane
   (not the origin)
@@ -861,7 +532,8 @@ VolumeNavigator.prototype.translatePlane = function(delta){
     vector: Array [x, y, z] - a normal vector (normalized or not)
 */
 VolumeNavigator.prototype.setPlaneNormal = function(vector){
-
+  console.log("To be implemented setPlaneNormal()");
+  /*
   var toLookAt = new THREE.Vector3(vector[0], vector[1], vector[2]);
 
   var currentCenter = {
@@ -883,90 +555,9 @@ VolumeNavigator.prototype.setPlaneNormal = function(vector){
      currentCenter.y,
      currentCenter.z
   );
+  */
 
   this.update();
-}
-
-
-/*
-  Rotate the plane (red square) using the center of the square as the center of rotation
-  (and not the origin as it would do by default).
-  args ax, ay and az are in degrees and can be 0.
-  Note: the plane equation is updated in the end.
-*/
-VolumeNavigator.prototype.rotatePlaneDegree = function(ax, ay, az){
-
-  var radx = ax * Math.PI / 180.
-  var rady = ay * Math.PI / 180.
-  var radz = az * Math.PI / 180.
-
-  this.rotatePlaneRadian(radx, rady, radz);
-
-}
-
-
-/*
-  Rotate the plane (red square) using the center of the square as the center of rotation
-  (and not the origin as it would do by default).
-  args ax, ay and az are in radians and can be 0.
-  Note: the plane equation is updated in the end.
-*/
-VolumeNavigator.prototype.rotatePlaneRadian = function(ax, ay, az){
-  var currentCenter = {
-      x: this.plane.geometry.boundingSphere.center.x,
-      y: this.plane.geometry.boundingSphere.center.y,
-      z: this.plane.geometry.boundingSphere.center.z
-  }
-
-  this.plane.geometry.translate(
-      -currentCenter.x,
-      -currentCenter.y,
-      -currentCenter.z
-  );
-
-  this.plane.geometry.rotateX(ax);
-  this.plane.geometry.rotateY(ay);
-  this.plane.geometry.rotateZ(az);
-
-  this.plane.geometry.translate(
-      currentCenter.x,
-      currentCenter.y,
-      currentCenter.z
-  );
-
-  this.update();
-}
-
-
-/*
-  NOT USED
-  This method computes the rotation matrix between the
-  plane ZX and the oblique sclice. Translation from the origin is missing
-  but since we actually don't needt this method, I stopped here.
-*/
-VolumeNavigator.prototype.getRotationMatrixSliceToZX = function(ax, ay, az){
-  var n_zx = [0, 1, 0];
-  var n_slice = this.getPlaneNormal();
-
-  // cross product gives the normal to n_zx and n_slice and helps giving the sine.
-  // In this matter, the normal vector is also the axis of rotation between n_zx and n_slice
-  var u = this.vectorTool.crossProduct(n_zx, n_slice );
-  var sinTheta = this.vectorTool.getNorm(u);
-  var cosTheta = this.vectorTool.dotProduct(n_zx, n_slice);
-
-  // we need u to be normalize to use it in the rotation matrix
-  var uNorm = this.vectorTool.normalize(u);
-
-  var rotationMatrix = [
-    [cosTheta + uNorm[0]*uNorm[0]*(1-cosTheta)  , uNorm[0]*uNorm[1]*(1-cosTheta) - uNorm[2]*sinTheta, uNorm[0]*uNorm[2]*(1-cosTheta) + uNorm[1]*sinTheta],
-    [uNorm[1]*uNorm[0]*(1-cosTheta) + uNorm[2]*sinTheta , cosTheta + uNorm[1]*uNorm[1]*(1-cosTheta), uNorm[1]*uNorm[2]*(1-cosTheta) - uNorm[0]*sinTheta],
-    [uNorm[2]*uNorm[0]*(1-cosTheta) - uNorm[2]*sinTheta , uNorm[2]*uNorm[1]*(1-cosTheta) + uNorm[0]*sinTheta, cosTheta + uNorm[2]*uNorm[2]*(1-cosTheta)]
-  ]
-
-  var point = [50, 50, 50];
-  var newPoint = this.vectorTool.rotate(point, rotationMatrix)
-
-
 }
 
 
@@ -1141,6 +732,7 @@ VolumeNavigator.prototype.computeCubePlaneHitPoints = function(){
 
   // array are still easier to deal with
   this.planePolygon = hitPoints.length ? hitPoints : null;
+
 }
 
 
@@ -1185,8 +777,6 @@ VolumeNavigator.prototype._getHitPoint = function(vector, point){
         this.planeEquation.b* affineSystem[1][1] +
         this.planeEquation.c* affineSystem[2][1] );
 
-  // TODO: be sure the cast to float is done
-  // float conversion is mandatory to avoid euclidean div...
   //var t = float(tNumerator) / float(tDenominator);
   var t = tNumerator / tDenominator;
 
@@ -1457,13 +1047,18 @@ VolumeNavigator.prototype.mapTextureFromCanvas = function(canvasID, coordinates)
 }
 
 
+/*
+  Creates the gimbal, which is the reference object for getting the plane equation.
+  The reference normal vector is the normal of the zCircle (0, 0, 1),
+  no good reason for that, just by convention.
+*/
 VolumeNavigator.prototype.initGimbal = function(){
 
-  // if no polygon, no draw
-  if(!this.planePolygon)
-    return;
-
-  var center = this.getPolygonCenter()
+  var center = [
+    this.outerBoxSize.xSize / 2,
+    this.outerBoxSize.ySize / 2,
+    this.outerBoxSize.zSize / 2
+  ]
   var origin = new THREE.Vector3( center[0], center[1], center[2] );
 
   var length = this.boxDiagonal / 10;
@@ -1473,27 +1068,6 @@ VolumeNavigator.prototype.initGimbal = function(){
   var xColor = 0xff3333;
   var yColor = 0x00ff55;
   var zColor = 0x0088ff;
-
-  /*
-  // ARROW HELPER - TRANSLATION
-  var xDir = new THREE.Vector3( 1, 0, 0 );
-  var yDir = new THREE.Vector3( 0, 1, 0 );
-  var zDir = new THREE.Vector3( 0, 0, 1 );
-
-  this.helpers.polygonCenterArrows[0] = new THREE.ArrowHelper( xDir, origin, length, xColor, headLength, headWidth );
-  //this.helpers.polygonCenterArrows[0].setLength (length, length/4, length/5);
-  this.helpers.polygonCenterArrows[1] = new THREE.ArrowHelper( yDir, origin, length, yColor, headLength, headWidth );
-  //this.helpers.polygonCenterArrows[1].setLength (length, length/4, length/5);
-  this.helpers.polygonCenterArrows[2] = new THREE.ArrowHelper( zDir, origin, length, zColor, headLength, headWidth );
-  //this.helpers.polygonCenterArrows[2].setLength (length, length/4, length/5);
-
-  this.scene.add( this.helpers.polygonCenterArrows[0] );
-  this.scene.add( this.helpers.polygonCenterArrows[1] );
-  this.scene.add( this.helpers.polygonCenterArrows[2] );
-  */
-
-
-
 
   // CIRCLE HELPERS - ROTATION
   var geometryX = new THREE.CircleGeometry( this.boxDiagonal / 2, 64 );
@@ -1519,10 +1093,10 @@ VolumeNavigator.prototype.initGimbal = function(){
   var circleZ = new THREE.Line( geometryZ, materialZ );
   circleZ.name = "zCircle";
 
-  this.helpers.gimbal = new THREE.Object3D();
-  this.helpers.gimbal.add(circleX);
-  this.helpers.gimbal.add(circleY);
-  this.helpers.gimbal.add(circleZ);
+  this.gimbal = new THREE.Object3D();
+  this.gimbal.add(circleX);
+  this.gimbal.add(circleY);
+  this.gimbal.add(circleZ);
 
   // DOUBLE SIDE ARROW
   var normalVectorArrow = new THREE.Vector3().copy(circleZ.geometry.faces[0].normal);
@@ -1554,14 +1128,11 @@ VolumeNavigator.prototype.initGimbal = function(){
   normalReverseArrow.cone.name = "normalArrow";
   normalReverseArrow.line.name = "normalArrow";
 
-  console.log(normalReverseArrow);
+  this.gimbal.add(normalArrow);
+  this.gimbal.add(normalReverseArrow);
 
-  this.helpers.gimbal.add(normalArrow);
-  this.helpers.gimbal.add(normalReverseArrow);
-
-
-  this.helpers.gimbal.translateOnAxis(origin.normalize(),  this.boxDiagonal / 2 );
-  this.scene.add( this.helpers.gimbal );
+  this.gimbal.translateOnAxis(origin.normalize(),  this.boxDiagonal / 2 );
+  this.scene.add( this.gimbal );
 
 }
 
@@ -1570,7 +1141,8 @@ VolumeNavigator.prototype.initGimbal = function(){
   Hide or show the axis arrow helper
 */
 VolumeNavigator.prototype.AxisArrowHelperToggle = function(){
-  this.helpers.gimbal.visible = !this.helpers.gimbal.visible;
+  this.gimbal.visible = !this.gimbal.visible;
+  this.innerBox.helper.visible = !this.innerBox.helper.visible;
 }
 
 
@@ -1609,13 +1181,11 @@ VolumeNavigator.prototype.updateMousePosition = function(event){
   Callback to perform when to mouse clicks
 */
 VolumeNavigator.prototype.onMouseDown = function(event){
-
   if(this.isMouseWithinCanvas(event)){
 
     this.updateMousePosition(event);
     this.updateAxisRaycaster();
   }
-
 }
 
 
@@ -1640,12 +1210,12 @@ VolumeNavigator.prototype.onMouseUp = function(event){
       this.onFinishChangeCallback();
     }
   }
-
 }
 
 
 /*
-  Callback when the mouse moves
+  Callback when the mouse moves.
+  If the gimbal is grabed at some point, this will trigger the move
 */
 VolumeNavigator.prototype.onMouseMove = function(event){
   // if no object is grabbed, we dont do anything
@@ -1676,7 +1246,6 @@ VolumeNavigator.prototype.onMouseMove = function(event){
       default:
 
     }
-
 
     this.update();
     this.objectGrabed.previousMouse.copy(this.mouse);
@@ -1735,10 +1304,9 @@ VolumeNavigator.prototype.mouseMoveTranslation = function(event){
 
   // here we have to use the relative normal vector of the gimbal
   // before it was rotated with quaternions (this is simply (0, 0, 1) )
-  var gimbalRelativeNormal = this.helpers.gimbal.children[2].geometry.faces[0].normal;
-  this.helpers.gimbal.translateOnAxis( gimbalRelativeNormal,distance );
+  var gimbalRelativeNormal = this.gimbal.children[2].geometry.faces[0].normal;
+  this.gimbal.translateOnAxis( gimbalRelativeNormal,distance );
 
-  this.updatePlaneFromGimbalAndArrows();
 }
 
 
@@ -1775,7 +1343,7 @@ VolumeNavigator.prototype.mouseMoveRotation = function(event){
 
   // vector from camera to gimbal center
   var cameraToGimbal = new THREE.Vector3().subVectors(
-    this.helpers.gimbal.position,
+    this.gimbal.position,
     this.camera.position
   ).normalize();
 
@@ -1784,10 +1352,8 @@ VolumeNavigator.prototype.mouseMoveRotation = function(event){
   var normalVector = this.getGimbalNormalVector(axisIndex);
   var dotProd = normalVector.dot(cameraToGimbal);
 
-
   // the finale angle is the angle but with a decision over the sign of it
   var finalAngle = angle * crossP[2] * (dotProd>0?1:-1);
-
   this.rotateGimbal(finalAngle, axisIndex);
 }
 
@@ -1798,9 +1364,10 @@ VolumeNavigator.prototype.mouseMoveRotation = function(event){
   of the gimbal, thus we need a method for that. (returns a copy)
 */
 VolumeNavigator.prototype.getGimbalNormalVector = function(axis){
-  var circleQuaternion = new THREE.Quaternion().copy(this.helpers.gimbal.quaternion);
+
+  var circleQuaternion = new THREE.Quaternion().copy(this.gimbal.quaternion);
   var normalVector = new THREE.Vector3()
-    .copy(this.helpers.gimbal.children[axis].geometry.faces[0].normal);
+    .copy(this.gimbal.children[axis].geometry.faces[0].normal);
 
   normalVector.applyQuaternion(circleQuaternion).normalize();
 
@@ -1813,7 +1380,7 @@ VolumeNavigator.prototype.getGimbalNormalVector = function(axis){
 */
 VolumeNavigator.prototype.updateAxisRaycaster = function(){
   // if the axis helper are hidden, we dont go further
-  if(!this.helpers.gimbal.visible){
+  if(!this.gimbal.visible){
     return;
   }
 
@@ -1822,7 +1389,7 @@ VolumeNavigator.prototype.updateAxisRaycaster = function(){
   var hit = false;
 
   // intersection with a circle? (for rotation)
-  var gimbalIntersections = this.raycaster.intersectObjects(this.helpers.gimbal.children, true );
+  var gimbalIntersections = this.raycaster.intersectObjects(this.gimbal.children, true );
 
   if(gimbalIntersections.length){
 
@@ -1842,14 +1409,10 @@ VolumeNavigator.prototype.updateAxisRaycaster = function(){
     }else if (objectName == "normalArrow"){
       this.objectGrabed.translationOrRotation = 0;
     }
-
   }
-
-
 
   // in any case of hit...
   if(hit){
-
     this.objectGrabed.previousMouse.copy(this.mouse);
     this.objectGrabed.isGrabed = true;
     this.controls.enabled = false;
@@ -1860,7 +1423,8 @@ VolumeNavigator.prototype.updateAxisRaycaster = function(){
 
 
 /*
-  save the OrbitControl setting to be able to restore this exact view later
+  save the OrbitControl setting to be able to restore this exact view later.
+  This behavior is supposed to be built in THREE OrbitControl, but it does not work.
 */
 VolumeNavigator.prototype.saveOrbitData = function(){
   this.orbitData = {
@@ -1875,7 +1439,8 @@ VolumeNavigator.prototype.saveOrbitData = function(){
 
 
 /*
-  Restore the viez that was saved before
+  Restore the viez that was saved before.
+  This behavior is supposed to be built in THREE OrbitControl, but it does not work.
 */
 VolumeNavigator.prototype.restoreOrbitData = function(){
   this.controls.position0.copy(this.orbitData.position);
@@ -1886,10 +1451,10 @@ VolumeNavigator.prototype.restoreOrbitData = function(){
 
 
 /*
-  axis is 0 for x, 1 for y and 2 for z
+  axis is 0 for x, 1 for y and 2 for z (relative to the gimbal)
 */
 VolumeNavigator.prototype.rotateGimbal = function(angle, axis){
-  var circleObject = this.helpers.gimbal.children[ axis ];
+  var circleObject = this.gimbal.children[ axis ];
 
   // the rotation axis we want is the normal of the disk
   // the NoRot vector is the normal vector before the group was rotated
@@ -1897,10 +1462,8 @@ VolumeNavigator.prototype.rotateGimbal = function(angle, axis){
 
   // the metods rotateOnAxis takes in consideration the internal quaternion
   // (no need to tune that manually, like I was trying to...)
-  this.helpers.gimbal.rotateOnAxis( normalVectorNoRot, angle );
+  this.gimbal.rotateOnAxis( normalVectorNoRot, angle );
 
-  // rotate the plane accordingly
-  this.updatePlaneFromGimbalAndArrows();
 }
 
 
@@ -1909,7 +1472,7 @@ VolumeNavigator.prototype.rotateGimbal = function(angle, axis){
   which is also the center of the gimbal
 */
 VolumeNavigator.prototype.getGimbalCenter = function(){
-  var center = this.helpers.gimbal.position;
+  var center = this.gimbal.position;
 
   return [
     center.x,
@@ -1920,32 +1483,28 @@ VolumeNavigator.prototype.getGimbalCenter = function(){
 
 
 /*
-  update the main plane (red square) with the center and
-  the normal vector of the gimbal.
-*/
-VolumeNavigator.prototype.updatePlaneFromGimbalAndArrows = function(){
-  var normal = this.getGimbalNormalVector(2);
-  var center = this.getGimbalCenter();
-  this.buildPlaneFromNormalAndPoint([normal.x, normal.y, normal.z], center);
-}
-
-
-/*
   moves the helper centers to the center of the polygon
   (called at mouseup)
 */
 VolumeNavigator.prototype.placeGimbalAtPolygonCenter = function(){
-  if(!this.helpers.gimbal)
+  if(!this.gimbal)
     return;
 
-  var polygonCenter = this.getPolygonCenter();
+  this.setGimbalCenter( this.getPolygonCenter() );
 
-  // update circle helper position
-  this.helpers.gimbal.position.x = polygonCenter[0];
-  this.helpers.gimbal.position.y = polygonCenter[1];
-  this.helpers.gimbal.position.z = polygonCenter[2];
 }
 
+
+/*
+  Set the gimbal center position (absolute coord)
+  Args:
+    coord: Array [x, y, z]
+*/
+VolumeNavigator.prototype.setGimbalCenter = function(coord){
+  this.gimbal.position.x = coord[0];
+  this.gimbal.position.y = coord[1];
+  this.gimbal.position.z = coord[2];
+}
 
 /*
   return the screen coord [x, y]

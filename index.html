@@ -96,6 +96,7 @@ https://aerotwist.com/tutorials/getting-started-with-three-js/
     zSize: 100
   }
 
+  // we use null instead
   // the inner box size and offset
   var innerBoxOptions = {
     xSize: 98,
@@ -107,7 +108,7 @@ https://aerotwist.com/tutorials/getting-started-with-three-js/
   }
 
   // creating a VolumeNavigator instance
-  var vn = new VolumeNavigator(outerBoxOptions, innerBoxOptions, "container");
+  var vn = new VolumeNavigator(outerBoxOptions, null, "container");
 
   // optional: this callback is called when a slider is moving (mouse down)
   vn.setOnChangeCallback(function(){
@@ -149,8 +150,7 @@ https://aerotwist.com/tutorials/getting-started-with-three-js/
   //vn.setPlaneNormal([1, 1, 0]);
 
   // optional: define the plane center point (updates the plane equation)
-  //vn.setPlanePoint([23, 33, 104]);
-
+  //vn.setPlanePoint([23, 33, 140]);
   </script>
 
 
