@@ -524,7 +524,6 @@ VolumeNavigator.prototype.setPlanePoint = function(p){
 
 
 /*
-  TODO: rotate the gimbal instead
   Change the orientation of the plane so that its normal vector is v.
   The center of rotation is the center of the red square that represents the plane
   (not the origin)
@@ -532,30 +531,17 @@ VolumeNavigator.prototype.setPlanePoint = function(p){
     vector: Array [x, y, z] - a normal vector (normalized or not)
 */
 VolumeNavigator.prototype.setPlaneNormal = function(vector){
-  console.log("To be implemented setPlaneNormal()");
-  /*
-  var toLookAt = new THREE.Vector3(vector[0], vector[1], vector[2]);
 
-  var currentCenter = {
-     x: this.plane.geometry.boundingSphere.center.x,
-     y: this.plane.geometry.boundingSphere.center.y,
-     z: this.plane.geometry.boundingSphere.center.z
-  }
+  // compute the normal between the vector in argument and
+  // the current gimbal normal (on disc z). This will give us the rotation axis
 
-  this.plane.geometry.translate(
-     -currentCenter.x,
-     -currentCenter.y,
-     -currentCenter.z
-  );
+  // 1- make sure "vector" is normalized
+  vector = new THREE.Vector3(vector[0], vector[1], vector[2]).normalize();
+  var gimbalNormal = new THREE.Vector3().copy(this.getGimbalNormalVector(2));
+  var rotationAxis = new THREE.Vector3().crossVectors( gimbalNormal, vector).normalize();
+  var angle = Math.acos(vector.dot(gimbalNormal));
 
-  this.plane.geometry.lookAt(toLookAt);
-
-  this.plane.geometry.translate(
-     currentCenter.x,
-     currentCenter.y,
-     currentCenter.z
-  );
-  */
+  this.gimbal.rotateOnAxis(rotationAxis, angle);
 
   this.update();
 }
@@ -813,7 +799,7 @@ VolumeNavigator.prototype._orderPolygonPoints = function(){
   var nbVertice = this.planePolygon.length;
   var center = this.getPolygonCenter();
 
-  // create normailized vectors from center to each vertex of the polygon
+  // create normalized vectors from center to each vertex of the polygon
   var normalizedRays = [];
   for(var v=0; v<nbVertice; v++){
     var currentRay = [

@@ -71,15 +71,8 @@ https://aerotwist.com/tutorials/getting-started-with-three-js/
 
 
   <p>
-    <span style="color:#c489ed">purple box</span>: the minc file bounding box <br />
-    <span style="color:#77AAFF">blue box</span>: the relevant data (aka. brain) bounding box within the minc <br />
-    <span style="color:#F88">red square</span>: the plane used to generate obliques <br />
-    <br />
     <span style="color:#F00">X axis in red</span>, <span style="color:#0C0">Y axis in green</span> and <span style="color:#00F">Z axis in blue</span>.
-    <br /><br />
-    Note: the size and position of the boxes have to be computed when the minc file is loaded.<br />
-    Note 2: you can, of course, play around with the controls on your upper right.
-
+    <br />
   </p>
 
 
@@ -96,7 +89,7 @@ https://aerotwist.com/tutorials/getting-started-with-three-js/
     zSize: 100
   }
 
-  // we use null instead
+  // Optional, we can use null instead
   // the inner box size and offset
   var innerBoxOptions = {
     xSize: 98,
@@ -108,18 +101,21 @@ https://aerotwist.com/tutorials/getting-started-with-three-js/
   }
 
   // creating a VolumeNavigator instance
-  var vn = new VolumeNavigator(outerBoxOptions, null, "container");
+  var vn = new VolumeNavigator(outerBoxOptions, innerBoxOptions, "container");
 
+  /*
   // optional: this callback is called when a slider is moving (mouse down)
   vn.setOnChangeCallback(function(){
-    //console.log("change!");
-    //vn.mapTextureFromCanvas();
+    console.log("change!");
   });
+  */
 
+  /*
   // optional: this callback is called when a slider is released (mouse up)
   vn.setOnFinishChangeCallback(function(){
-    //console.log("change finish!");
+    console.log("change finish!");
   });
+  */
 
   // optional: add a button at the bottom of dat.gui with its associated callback.
   // originally for caching the current slice.
@@ -130,6 +126,7 @@ https://aerotwist.com/tutorials/getting-started-with-three-js/
 
   // optional: add a list of choices with a callback.
   // originally to display cached sliced
+  /*
   vn.buildGuiList(
     "The list",
     {
@@ -141,20 +138,14 @@ https://aerotwist.com/tutorials/getting-started-with-three-js/
       console.log("this is the callback, value: " + value);
     }
   );
+  */
 
   // optional: define the plane normal manually (updates the plane equation)
-  //vn.setPlaneNormal([0, 1, 1]);
-  //vn.setPlaneNormal([0, 0, 1]);
-  //vn.setPlaneNormal([80, 0, 10]);
-  //vn.setPlaneNormal([0, 23, 10]);
   //vn.setPlaneNormal([1, 1, 0]);
 
   // optional: define the plane center point (updates the plane equation)
-  //vn.setPlanePoint([23, 33, 140]);
+  //vn.setPlanePoint([10, 10, 10]);
   </script>
-
-
-
 
 </body>
 </html>
