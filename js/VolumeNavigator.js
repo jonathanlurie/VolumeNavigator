@@ -80,8 +80,6 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
   // create the gimbal
   this.initGimbal();
 
-
-
   // init click and keyboard events
   this.initKeyEvents();
 
@@ -92,7 +90,6 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
 
   // just toi nitialize in order to update dat.gui field
   this.update();
-
 
   // animate and update
   this.animate();
@@ -501,14 +498,12 @@ VolumeNavigator.prototype.getPlanePoint = function(){
 
 
 /*
-  TODO: translate the gimbal instead
   Define the center point of the red square (symbolizes a point of the plane).
   Along with setPlaneNormal(), it defines the plane equation.
   Args:
     p: Array [x, y, z] - the absolute position to reach
 */
 VolumeNavigator.prototype.setPlanePoint = function(p){
-
 
   if(this._isWithin(p)){
     this.setGimbalCenter(p);
@@ -518,8 +513,6 @@ VolumeNavigator.prototype.setPlanePoint = function(p){
   }else {
     console.log("ERROR: The point requested is not in the volume");
   }
-
-
 }
 
 
