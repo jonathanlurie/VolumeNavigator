@@ -116,8 +116,6 @@ VectorTools.prototype.rotate = function(v, m){
     v[0]*m[2][0] + v[1]*m[2][1] + v[2]*m[2][2],
   ];
 
-  console.log("HELLo");
-
   return vRot;
 }
 
