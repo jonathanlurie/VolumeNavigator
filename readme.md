@@ -24,14 +24,14 @@ see `index.html` or ...
 
 ```javascript
 
-// shape of the inner box
+// shape of the outer box
 var outerBoxOptions = {
     xSize: 330,
     ySize: 350,
     zSize: 385
 }
 
-// shape of the outer box
+// shape of the inner box
 var innerBoxOptions = {
     xSize: 150,
     ySize: 210,
