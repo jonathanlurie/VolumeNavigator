@@ -31,7 +31,7 @@ var outerBoxOptions = {
     zSize: 385
 }
 
-// shape of the inner box
+// shape of the inner box, can also be null for an auto setting
 var innerBoxOptions = {
     xSize: 150,
     ySize: 210,
