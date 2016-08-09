@@ -121,14 +121,33 @@ VolumeNavigator.prototype.onKeyUp = function(event){
     return;
   }
 
+  //console.log("Keycode: " + event.keyCode);
+
   switch ( event.keyCode ) {
     // space bar
     case 32:
-    event.preventDefault();
-    event.stopPropagation();
+      event.preventDefault();
+      event.stopPropagation();
 
-    this.AxisArrowHelperToggle();
-    break;
+      this.AxisArrowHelperToggle();
+      break;
+
+    // char "u", tilt the gimbal over u unit vector
+    case 85:
+      event.preventDefault();
+      event.stopPropagation();
+
+      this.tiltGimbalU();
+      break;
+
+    // char "v", tilt the gimbal over u unit vector
+    case 86:
+      event.preventDefault();
+      event.stopPropagation();
+
+      this.tiltGimbalV();
+      break;
+
     default:
   }
 
@@ -1371,6 +1390,14 @@ VolumeNavigator.prototype.getGimbalNormalVector = function(axis){
 
 
 /*
+  The same as getGimbalNormalVector but returns a [x, y, z] JS Array
+*/
+VolumeNavigator.prototype.getGimbalNormalVectorArr = function(axis){
+  var v = this.getGimbalNormalVector(axis);
+  return [v.x, v.y, v.z];
+}
+
+/*
   return a hard copy of the gimbal's quaternion
 */
 VolumeNavigator.prototype.getGimbalQuaternion = function(){
@@ -1556,4 +1583,36 @@ VolumeNavigator.prototype.getScreenCoord = function(coord3D, normalized){
   }
 
   return [vector.x, vector.y, 0];
+}
+
+
+/*
+  Tilt the gimbal so that u unit vectors becomes the reference normal vector
+  (= normal of zCircle)
+  In other word, this is a pi/2 rotation around Y axis
+  (here, X relative to the gimbal world, dont forget we are using quaternions)
+*/
+VolumeNavigator.prototype.tiltGimbalU = function(){
+  console.log("tiltGimbalU");
+  // the X axis is the rotation axis (Y as defined originally)
+  this.rotateGimbal(Math.PI/2., 0);
+  this.update();
+
+  this.onFinishChangeCallback();
+}
+
+
+/*
+  Tilt the gimbal so that v unit vectors becomes the reference normal vector
+  (= normal of zCircle)
+  In other word, this is a pi/2 rotation around X axis
+  (here, X relative to the gimbal world, dont forget we are using quaternions)
+*/
+VolumeNavigator.prototype.tiltGimbalV = function(){
+  console.log("tiltGimbalV");
+  // the Y axis is the rotation axis (Y as defined originally)
+  this.rotateGimbal(Math.PI/2., 1);
+  this.update();
+
+  this.onFinishChangeCallback();
 }
