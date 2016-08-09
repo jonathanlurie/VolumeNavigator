@@ -14,6 +14,7 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
 
   // relate to grabbing an object (circle helper or arrow)
   this.objectGrabed = {
+    shift: false,
     isGrabed: false,
     currentGrabPosition: new THREE.Vector3(),
     axis: [0, 0, 0], // each is a factor so should be 0 or 1
@@ -104,11 +105,37 @@ VolumeNavigator.prototype.initKeyEvents = function(){
   window.addEventListener( 'mouseup', this.onMouseUp.bind(this), false );
   window.addEventListener( 'mousemove', this.onMouseMove.bind(this), false );
   window.addEventListener( 'keyup', this.onKeyUp.bind(this), false );
+  window.addEventListener( 'keydown', this.onKeyDown.bind(this), false );
 }
 
 
 /*
-  Keyboard events
+  Keyboard event (DOWN)
+  Note: regular chars (letter, num...) are repeated but
+  special keys (shift, ctrl...) are not.
+*/
+VolumeNavigator.prototype.onKeyDown = function(event){
+  if(event.keyCode != 16)
+    return;
+
+  // keep the switch for later, if we want more keys
+  switch ( event.keyCode ) {
+    // shift
+    case 16:
+      event.preventDefault();
+      event.stopPropagation();
+
+      this.objectGrabed.shift = true;
+      break;
+
+    default:
+  }
+
+}
+
+
+/*
+  Keyboard events (UP)
 */
 VolumeNavigator.prototype.onKeyUp = function(event){
   // To avoid multiple strike at one (part 1)
@@ -121,7 +148,7 @@ VolumeNavigator.prototype.onKeyUp = function(event){
     return;
   }
 
-  //console.log("Keycode: " + event.keyCode);
+  console.log("up: " + event.keyCode);
 
   switch ( event.keyCode ) {
     // space bar
@@ -146,6 +173,14 @@ VolumeNavigator.prototype.onKeyUp = function(event){
       event.stopPropagation();
 
       this.tiltGimbalV();
+      break;
+
+    // shift
+    case 16:
+      event.preventDefault();
+      event.stopPropagation();
+
+      this.objectGrabed.shift = false;
       break;
 
     default:
@@ -370,7 +405,14 @@ VolumeNavigator.prototype.initGui = function(){
   planeInfoFolder.add(this.guiValue.normalVector, 'literal').name("Normal vector").listen();
   planeInfoFolder.add(this.guiValue.point, 'literal').name("Point").listen();
 
-  //this.buildGuiButton("Toggle controls", this.AxisArrowHelperToggle.bind(this));
+
+  // additionnal buttons
+  this.buildGuiButton("Toggle controls", this.AxisArrowHelperToggle.bind(this));
+  this.buildGuiButton("Tilt gimbal U", this.tiltGimbalU.bind(this));
+  this.buildGuiButton("Tilt gimbal V", this.tiltGimbalV.bind(this));
+  this.buildGuiButton("Center the gimbal", this.placeGimbalAtPolygonCenter.bind(this));
+
+
 }
 
 
@@ -378,10 +420,10 @@ VolumeNavigator.prototype.initGui = function(){
   Add a button with its callback - generic, add as many bt as we want
 */
 VolumeNavigator.prototype.buildGuiButton = function(name, callback){
-  this.guiValue.customButton["name"] = name;
-  this.guiValue.customButton["callback"] = callback;
+  this.guiValue.customButton[name] = name;
+  this.guiValue.customButton[name + "callback"] = callback;
 
-  this.gui.add(this.guiValue.customButton, 'callback').name(this.guiValue.customButton.name);
+  this.gui.add(this.guiValue.customButton, name + "callback").name(this.guiValue.customButton[name]);
 }
 
 
@@ -955,9 +997,9 @@ VolumeNavigator.prototype.updatePolygonTriangles = function(){
 
     this.polygonTriangles.geometry.vertices.push(
       new THREE.Vector3(
-        this.planePolygon[v][0],
-        this.planePolygon[v][1],
-        this.planePolygon[v][2]
+        parseFloat(this.planePolygon[v][0]),
+        parseFloat(this.planePolygon[v][1]),
+        parseFloat(this.planePolygon[v][2])
       ));
   }
 
@@ -969,9 +1011,11 @@ VolumeNavigator.prototype.updatePolygonTriangles = function(){
   // adding the last face manually (to close the loop)
   this.polygonTriangles.geometry.faces.push( new THREE.Face3( 0, this.planePolygon.length, 1 ) );
 
+  this.polygonTriangles.geometry.computeFaceNormals();
+  this.polygonTriangles.mesh.name = "intersectPolygon"
+
   // it was removed earlier
   this.scene.add( this.polygonTriangles.mesh );
-
 
 }
 
@@ -1148,6 +1192,20 @@ VolumeNavigator.prototype.initGimbal = function(){
   this.gimbal.translateOnAxis(origin.normalize(),  this.boxDiagonal / 2 );
   this.scene.add( this.gimbal );
 
+  /*
+  // creating a semi transparent sphere to better lead the user to were is the gimbal
+  var sphereGeometry = new THREE.SphereGeometry( (this.boxDiagonal / 2)-1, 64, 64 );
+  var sphereMaterial = new THREE.MeshBasicMaterial( {
+    color: 0xffff00,
+    transparent: true,
+    opacity: 0.5,
+    side: THREE.BackSide
+  } );
+
+  var sphere = new THREE.Mesh( sphereGeometry, sphereMaterial );
+  this.gimbal.add( sphere );
+  */
+
 }
 
 
@@ -1218,7 +1276,8 @@ VolumeNavigator.prototype.onMouseUp = function(event){
     // disable the controls
     this.controls.enabled = true;
 
-    this.placeGimbalAtPolygonCenter();
+    // optionally auto place the center of the gimbal at the center of the polygon
+    //this.placeGimbalAtPolygonCenter();
 
     if(this.onFinishChangeCallback){
       this.onFinishChangeCallback();
@@ -1250,7 +1309,11 @@ VolumeNavigator.prototype.onMouseMove = function(event){
     switch (this.objectGrabed.translationOrRotation) {
       // this is a tranlation...
       case 0:
-        this.mouseMoveTranslation();
+        if(this.objectGrabed.shift){ // shift key is hold
+          this.mouseMoveTranslationSamePlane();
+        }else{ // regular case
+          this.mouseMoveTranslation();
+        }
         break;
 
       // this is a rotation...
@@ -1322,6 +1385,40 @@ VolumeNavigator.prototype.mouseMoveTranslation = function(event){
   this.gimbal.translateOnAxis( gimbalRelativeNormal,distance );
 
 }
+
+
+/*
+  Happens when the center of the gimbal is clicked to be moved AND the SHIFT key
+  is hold. Instead of moving the plane towards (or opposite to) the reference normal
+  vector of the plane, the center of the gimbal moves within the plane
+  (only X and Y in the gimbal reference move, Z remains)
+*/
+VolumeNavigator.prototype.mouseMoveTranslationSamePlane = function(event){
+
+	this.raycaster.setFromCamera( this.mouse, this.camera );
+  var hit = false;
+
+  // intersection with a circle? (for rotation)
+  var gimbalIntersections = this.raycaster.intersectObjects(
+    //this.polygonTriangles.geometry.faces,
+    this.scene.children,
+    true
+  );
+
+  //console.log("THEN: this.polygonTriangles.geometry");
+  //console.log(this.polygonTriangles.geometry.faces);
+
+
+  for(i=0; i<gimbalIntersections.length; i++){
+    if(gimbalIntersections[i].object.name == "intersectPolygon"){
+
+      this.gimbal.position.copy(gimbalIntersections[i].point);
+      break;
+    }
+  }
+}
+
+
 
 
 /*
@@ -1598,7 +1695,9 @@ VolumeNavigator.prototype.tiltGimbalU = function(){
   this.rotateGimbal(Math.PI/2., 0);
   this.update();
 
-  this.onFinishChangeCallback();
+  if(this.onFinishChangeCallback){
+      this.onFinishChangeCallback();
+  }
 }
 
 
@@ -1614,5 +1713,7 @@ VolumeNavigator.prototype.tiltGimbalV = function(){
   this.rotateGimbal(Math.PI/2., 1);
   this.update();
 
-  this.onFinishChangeCallback();
+  if(this.onFinishChangeCallback){
+      this.onFinishChangeCallback();
+  }
 }
