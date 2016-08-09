@@ -351,7 +351,7 @@ VolumeNavigator.prototype.initGui = function(){
   planeInfoFolder.add(this.guiValue.normalVector, 'literal').name("Normal vector").listen();
   planeInfoFolder.add(this.guiValue.point, 'literal').name("Point").listen();
 
-  this.buildGuiButton("Toggle controls", this.AxisArrowHelperToggle.bind(this));
+  //this.buildGuiButton("Toggle controls", this.AxisArrowHelperToggle.bind(this));
 }
 
 
@@ -374,6 +374,23 @@ VolumeNavigator.prototype.buildGuiButton = function(name, callback){
     callback: function - function to call when a choice is done. It takes the value as argument.
 */
 VolumeNavigator.prototype.buildGuiList = function(listName, list, callback){
+  /*
+  TODO: now listName is like that
+  {
+    "name0": 0,
+    "name1": 1,
+    "name2": 2,
+    "name3": 3, ...
+  }
+
+  but this should be just a list [] at its equivalent map should be built here
+  */
+
+  var mapOfNames = {};
+  for(i=0; i<list.length; i++){
+    mapOfNames[list[i]] = i;
+  }
+
 
   if(! (typeof this.guiValue.customList["controller"] === "undefined") ){
     // remove the current elem
@@ -381,14 +398,14 @@ VolumeNavigator.prototype.buildGuiList = function(listName, list, callback){
     this.guiValue.customList = {};
   }
 
-  this.guiValue.customList["list"] = list;
+  this.guiValue.customList["mapOfNames"] = mapOfNames;
   this.guiValue.customList["listName"] = listName;
   this.guiValue.customList["callback"] = callback;
 
   this.guiValue.customList["controller"] = this.gui.add(
     this.guiValue.customList,
     "listName",
-    this.guiValue.customList["list"]
+    this.guiValue.customList["mapOfNames"]
   )
   .name(this.guiValue.customList["listName"]) // necessay, I think there is a bug in using the name
   .onFinishChange(callback);
@@ -401,8 +418,7 @@ VolumeNavigator.prototype.buildGuiList = function(listName, list, callback){
   Update few things: equation, normal, point, hitpoint
 */
 VolumeNavigator.prototype.update = function(){
-  //this.updatePlaneFromGimbalAndArrows();
-  //console.log(this.gimbal);
+
   // update values related to plane equation, normal vector and plane point
   this.updatePlaneEquation();
 
@@ -524,18 +540,16 @@ VolumeNavigator.prototype.setPlanePoint = function(p){
     vector: Array [x, y, z] - a normal vector (normalized or not)
 */
 VolumeNavigator.prototype.setPlaneNormal = function(vector){
-
   // compute the normal between the vector in argument and
   // the current gimbal normal (on disc z). This will give us the rotation axis
 
   // 1- make sure "vector" is normalized
-  vector = new THREE.Vector3(vector[0], vector[1], vector[2]).normalize();
+  var vector2 = new THREE.Vector3(vector[0], vector[1], vector[2]).normalize();
   var gimbalNormal = new THREE.Vector3().copy(this.getGimbalNormalVector(2));
-  var rotationAxis = new THREE.Vector3().crossVectors( gimbalNormal, vector).normalize();
-  var angle = Math.acos(vector.dot(gimbalNormal));
+  var rotationAxis = new THREE.Vector3().crossVectors( gimbalNormal, vector2).normalize();
+  var angle = Math.acos(vector2.dot(gimbalNormal));
 
   this.gimbal.rotateOnAxis(rotationAxis, angle);
-
   this.update();
 }
 
@@ -786,8 +800,10 @@ VolumeNavigator.prototype._getHitPoint = function(vector, point){
 */
 VolumeNavigator.prototype._orderPolygonPoints = function(){
 
-  if(!this.planePolygon)
+  if(!this.planePolygon){
     return;
+  }
+
 
   var nbVertice = this.planePolygon.length;
   var center = this.getPolygonCenter();
@@ -1351,6 +1367,35 @@ VolumeNavigator.prototype.getGimbalNormalVector = function(axis){
   normalVector.applyQuaternion(circleQuaternion).normalize();
 
   return normalVector;
+}
+
+
+/*
+  return a hard copy of the gimbal's quaternion
+*/
+VolumeNavigator.prototype.getGimbalQuaternion = function(){
+  return new THREE.Quaternion().copy(this.gimbal.quaternion);
+}
+
+
+/*
+  set the quaternion
+  Args:
+    q: THREE.Quaternion - the quaternion to apply to the gimbal
+*/
+VolumeNavigator.prototype.setGimbalQuaternion = function(q){
+  this.gimbal.quaternion.copy(q);
+}
+
+
+/*
+  set the quaternion's element to apply to the gimbal
+*/
+VolumeNavigator.prototype.setGimbalQuaternionElem = function(x, y, z, w){
+  this.gimbal.quaternion.x = x;
+  this.gimbal.quaternion.y = y;
+  this.gimbal.quaternion.z = z;
+  this.gimbal.quaternion.w = w;
 }
 
 
