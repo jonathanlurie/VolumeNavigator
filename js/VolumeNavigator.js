@@ -1640,6 +1640,10 @@ VolumeNavigator.prototype.placeGimbalAtPolygonCenter = function(){
 
   this.setGimbalCenter( this.getPolygonCenter() );
 
+  if(this.onFinishChangeCallback){
+      this.onFinishChangeCallback();
+  }
+
 }
 
 
