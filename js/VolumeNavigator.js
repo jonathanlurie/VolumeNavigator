@@ -135,9 +135,12 @@ VolumeNavigator.prototype.onKeyDown = function(event){
 
 
 /*
-  Keyboard events (UP)
+  Keyboard events (UP)- The change of keyboard layout should not afect
+  the position of the key, since the keycode is used. Though, the letters
+  mentionned in comment are the ones on a US/QWERTY keyboard.
 */
 VolumeNavigator.prototype.onKeyUp = function(event){
+  /*
   // To avoid multiple strike at one (part 1)
   if(typeof this.lastKeyupTimestamp === 'undefined'){
     this.lastKeyupTimestamp = 0;
@@ -147,7 +150,7 @@ VolumeNavigator.prototype.onKeyUp = function(event){
   if(event.timeStamp - this.lastKeyupTimestamp < 100){
     return;
   }
-
+  */
   console.log("up: " + event.keyCode);
 
   switch ( event.keyCode ) {
@@ -155,7 +158,6 @@ VolumeNavigator.prototype.onKeyUp = function(event){
     case 32:
       event.preventDefault();
       event.stopPropagation();
-
       this.AxisArrowHelperToggle();
       break;
 
@@ -163,7 +165,6 @@ VolumeNavigator.prototype.onKeyUp = function(event){
     case 85:
       event.preventDefault();
       event.stopPropagation();
-
       this.tiltGimbalU();
       break;
 
@@ -171,7 +172,6 @@ VolumeNavigator.prototype.onKeyUp = function(event){
     case 86:
       event.preventDefault();
       event.stopPropagation();
-
       this.tiltGimbalV();
       break;
 
@@ -179,15 +179,57 @@ VolumeNavigator.prototype.onKeyUp = function(event){
     case 16:
       event.preventDefault();
       event.stopPropagation();
-
       this.objectGrabed.shift = false;
+      break;
+
+    // char 'Q', move forward along normal vector
+    case 81:
+      event.preventDefault();
+      event.stopPropagation();
+      this.moveAlongNormal( this.objectGrabed.shift? 10 : 1 );
+      break;
+
+    // char 'A', move backward along normal vector
+    case 65:
+      event.preventDefault();
+      event.stopPropagation();
+      this.moveAlongNormal( this.objectGrabed.shift? -10 : -1 );
+      break;
+
+
+    // char 'W', move forward along U ortho vector
+    case 87:
+      event.preventDefault();
+      event.stopPropagation();
+      this.moveAlongOrthoU( this.objectGrabed.shift? 10 : 1 );
+      break;
+
+    // char 'S', move backward along U ortho vector
+    case 83:
+      event.preventDefault();
+      event.stopPropagation();
+      this.moveAlongOrthoU( this.objectGrabed.shift? -10 : -1 );
+      break;
+
+    // char 'E', move forward along V ortho  vector
+    case 69:
+      event.preventDefault();
+      event.stopPropagation();
+      this.moveAlongOrthoV( this.objectGrabed.shift? 10 : 1 );
+      break;
+
+    // char 'D', move backward along V ortho vector
+    case 68:
+      event.preventDefault();
+      event.stopPropagation();
+      this.moveAlongOrthoV( this.objectGrabed.shift? -10 : -1 );
       break;
 
     default:
   }
 
   // To avoid multiple strike at one (part 2)
-  this.lastKeyupTimestamp = event.timeStamp;
+  //this.lastKeyupTimestamp = event.timeStamp;
 }
 
 
@@ -1225,8 +1267,10 @@ VolumeNavigator.prototype.AxisArrowHelperToggle = function(){
 VolumeNavigator.prototype.isMouseWithinCanvas = function(event){
   var scrollTop = window.pageYOffset || (document.documentElement || document.body.parentNode || document.body).scrollTop;
 
-  if(event.clientX > this.domContainer.offsetLeft &&
-    event.clientX < this.domContainer.offsetLeft + this.domContainer.offsetWidth &&
+  var offsetLeft = this.getCanvasLeftOffset();
+
+  if(event.clientX > offsetLeft &&
+    event.clientX < offsetLeft + this.domContainer.offsetWidth &&
     event.clientY > this.domContainer.offsetTop  - scrollTop &&
     event.clientY < this.domContainer.offsetTop + this.domContainer.offsetHeight
     ){
@@ -1239,13 +1283,36 @@ VolumeNavigator.prototype.isMouseWithinCanvas = function(event){
 
 
 /*
+  If the canvas is encapsulated in a hierarchy of divs, we have to get all the
+  relative offet so that we can get the [-1, 1] coord system
+*/
+VolumeNavigator.prototype.getCanvasLeftOffset = function(){
+  var offsetLeft =  this.domContainer.offsetLeft;
+  var parentContainer = this.domContainer.offsetParent;
+
+  // adding parent's relative offsets (not using jquery makes it kind of cumbersome...)
+  while(parentContainer){
+    offsetLeft += parentContainer.offsetLeft;
+    parentContainer = parentContainer.offsetParent;
+  }
+
+  return offsetLeft;
+}
+
+
+/*
   Update the mouse position with x and y in [-1; 1]
 */
 VolumeNavigator.prototype.updateMousePosition = function(event){
   var scrollTop = window.pageYOffset || (document.documentElement || document.body.parentNode || document.body).scrollTop;
 
-  this.mouse.x = ( (event.clientX - this.domContainer.offsetLeft) / this.domContainer.offsetWidth ) * 2 - 1;
+  var offsetLeft = this.getCanvasLeftOffset();
+
+  this.mouse.x = ( (event.clientX - offsetLeft) / this.domContainer.offsetWidth ) * 2 - 1;
   this.mouse.y = - ( (event.clientY - this.domContainer.offsetTop + scrollTop) / this.domContainer.offsetHeight ) * 2 + 1;
+
+  console.log( this.domContainer);
+  console.log("mouse " + this.mouse.x + " " + this.mouse.y);
 }
 
 
@@ -1253,6 +1320,7 @@ VolumeNavigator.prototype.updateMousePosition = function(event){
   Callback to perform when to mouse clicks
 */
 VolumeNavigator.prototype.onMouseDown = function(event){
+
   if(this.isMouseWithinCanvas(event)){
 
     this.updateMousePosition(event);
@@ -1291,6 +1359,7 @@ VolumeNavigator.prototype.onMouseUp = function(event){
   If the gimbal is grabed at some point, this will trigger the move
 */
 VolumeNavigator.prototype.onMouseMove = function(event){
+
   // if no object is grabbed, we dont do anything
   if(!this.objectGrabed.isGrabed){
     return;
@@ -1648,7 +1717,9 @@ VolumeNavigator.prototype.placeGimbalAtPolygonCenter = function(){
 
 
 /*
-  Set the gimbal center position (absolute coord)
+  Set the gimbal center position (absolute coord).
+  Does not check if it is still in the volume.
+  If check is needed, use this.setPlanePoint()
   Args:
     coord: Array [x, y, z]
 */
@@ -1657,6 +1728,16 @@ VolumeNavigator.prototype.setGimbalCenter = function(coord){
   this.gimbal.position.y = coord[1];
   this.gimbal.position.z = coord[2];
 }
+
+
+/*
+  Move the center of the gimbal relative to its current position.
+  To set the absolute position, use this.setPlanePoint()
+*/
+VolumeNavigator.prototype.moveGimbalCenterRelative = function(vector){
+  this.gimbal.position.add(vector);
+}
+
 
 /*
   return the screen coord [x, y]
@@ -1715,6 +1796,58 @@ VolumeNavigator.prototype.tiltGimbalV = function(){
   console.log("tiltGimbalV");
   // the Y axis is the rotation axis (Y as defined originally)
   this.rotateGimbal(Math.PI/2., 1);
+  this.update();
+
+  if(this.onFinishChangeCallback){
+      this.onFinishChangeCallback();
+  }
+}
+
+
+/*
+  This moves the plane along the reference normal vector (unit).
+  Args:
+    factor: number - negative to move backward, positive to move forward
+      then, it can 1 or 10 depending on the step size we want to move
+*/
+VolumeNavigator.prototype.moveAlongNormal = function(factor){
+  var resultVector = this.getGimbalNormalVector(2).multiplyScalar(factor);
+  this.moveGimbalCenterRelative(resultVector);
+
+  this.update();
+
+  if(this.onFinishChangeCallback){
+      this.onFinishChangeCallback();
+  }
+}
+
+
+/*
+  This moves the plane along the orthogonal unit vector u.
+  Args:
+    factor: number - negative to move backward, positive to move forward
+      then, it can 1 or 10 depending on the step size we want to move
+*/
+VolumeNavigator.prototype.moveAlongOrthoU = function(factor){
+  var resultVector = this.getGimbalNormalVector(1).multiplyScalar(factor);
+  this.moveGimbalCenterRelative(resultVector);
+  this.update();
+
+  if(this.onFinishChangeCallback){
+      this.onFinishChangeCallback();
+  }
+}
+
+
+/*
+  This moves the plane along the orthogonal unit vector v.
+  Args:
+    factor: number - negative to move backward, positive to move forward
+      then, it can 1 or 10 depending on the step size we want to move
+*/
+VolumeNavigator.prototype.moveAlongOrthoV = function(factor){
+  var resultVector = this.getGimbalNormalVector(0).multiplyScalar(factor);
+  this.moveGimbalCenterRelative(resultVector);
   this.update();
 
   if(this.onFinishChangeCallback){
