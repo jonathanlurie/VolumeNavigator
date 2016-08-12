@@ -279,8 +279,8 @@ VolumeNavigator.prototype.init = function(){
 
     // the camera starts at 0,0,0
     // so pull it back, in a more comfortable position
-    this.camera.position.z = this.boxDiagonal * 2;
-    this.camera.position.y = this.boxDiagonal * 1.5;
+    this.camera.position.z = this.boxDiagonal * 1.5;
+    this.camera.position.y = this.boxDiagonal;
     this.camera.position.x = -this.boxDiagonal;
 
     // start the renderer
