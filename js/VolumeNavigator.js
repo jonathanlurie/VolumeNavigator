@@ -63,6 +63,32 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
   // callback when a slider has finished to slide (mouse up)
   this.onFinishChangeCallback = null;
 
+
+  // all the callbacks with their event names
+  this.callbacks = {
+    onOrbitingX: null,  // when grabing the red circle while mouseMove
+    onOrbitedX: null,   // when done orbiting on the red circle
+    onOrbitingY: null,  // when grabing the green circle while mouseMove
+    onOrbitedY: null,   // when done orbiting on the green circle
+    onOrbitingZ: null,   // when grabing the blue circle while mouseMove
+    onOrbitedZ: null,   // when done orbiting on the blue circle
+
+    onMovingAlongNormal: null,
+    onMovedAlongNormal: null,
+    onMovingAlongOrthoU: null,
+    onMovedAlongOrthoU: null,
+    onMovingAlongOrthoV: null,
+    onMovedAlongOrthoV: null
+  }
+
+  // temporary array of callbacks to call while moving the mouse
+  // To be cleaned at mouseup
+  this.movingCallbacks = [];
+  // temporary array of callback to call at mouseUp.
+  // To be cleaned at mouseup
+  this.movedCallbacks = [];
+
+  // the main object for dealing with translation and rotation
   this.gimbal= null;
 
   // Array containg each edge (12) equation in space
@@ -106,6 +132,82 @@ VolumeNavigator.prototype.initKeyEvents = function(){
   window.addEventListener( 'mousemove', this.onMouseMove.bind(this), false );
   window.addEventListener( 'keyup', this.onKeyUp.bind(this), false );
   window.addEventListener( 'keydown', this.onKeyDown.bind(this), false );
+}
+
+
+/*
+  Defines the callback for a situation.
+  Args:
+    cbName: string - name of the callback, must match children of this.callbacks
+    cb: a function to call depending on the situation
+*/
+VolumeNavigator.prototype.setCallback = function(cbName, cb){
+  var keys = Object.keys(this.callbacks);
+
+  // Quit if a wrong callback is given
+  if(keys.indexOf(cbName) == -1){
+    console.warn("The givent callback (" + cbName + ") is not valid.");
+    return;
+  }
+
+  this.callbacks[cbName] = cb;
+}
+
+
+/*
+  call a callback from its given name. Just handles its existance.
+*/
+VolumeNavigator.prototype.callCallback = function(cbName){
+  if(this.callbacks[cbName])
+    this.callbacks[cbName]();
+}
+
+
+/*
+  Call all the callback in the preview list
+*/
+VolumeNavigator.prototype.callAllMovingCallbacks = function(){
+
+  this.movingCallbacks.forEach(function(elem){
+    this.callCallback(elem);
+
+  }, this);
+
+}
+
+
+/*
+  Call all the callback in the moved list
+*/
+VolumeNavigator.prototype.callAllMovedCallbacks = function(){
+  this.movedCallbacks.forEach(function(elem){
+    this.callCallback(elem);
+
+  }, this);
+}
+
+
+/*
+  Adds a callback to the list by using its name.
+  Perform a verification so that a callback is not added twice.
+*/
+VolumeNavigator.prototype.addMovedCallbacks = function(cbName){
+  // adding cb to the list only if it does not exist
+  if(this.movedCallbacks.indexOf(cbName) == -1 ){
+    this.movedCallbacks.push(cbName);
+  }
+}
+
+
+/*
+  Adds a callback to the list by using its name.
+  Perform a verification so that a callback is not added twice.
+*/
+VolumeNavigator.prototype.addMovingCallbacks = function(cbName){
+  // adding cb to the list only if it does not exist
+  if(this.movingCallbacks.indexOf(cbName) == -1 ){
+    this.movingCallbacks.push(cbName);
+  }
 }
 
 
@@ -239,6 +341,8 @@ VolumeNavigator.prototype.onKeyUp = function(event){
 VolumeNavigator.prototype.setOnChangeCallback = function(cb){
   this.onChangeCallback = cb;
 }
+
+
 
 
 /*
@@ -1310,9 +1414,6 @@ VolumeNavigator.prototype.updateMousePosition = function(event){
 
   this.mouse.x = ( (event.clientX - offsetLeft) / this.domContainer.offsetWidth ) * 2 - 1;
   this.mouse.y = - ( (event.clientY - this.domContainer.offsetTop + scrollTop) / this.domContainer.offsetHeight ) * 2 + 1;
-
-  console.log( this.domContainer);
-  console.log("mouse " + this.mouse.x + " " + this.mouse.y);
 }
 
 
@@ -1347,9 +1448,19 @@ VolumeNavigator.prototype.onMouseUp = function(event){
     // optionally auto place the center of the gimbal at the center of the polygon
     //this.placeGimbalAtPolygonCenter();
 
+    /*
     if(this.onFinishChangeCallback){
       this.onFinishChangeCallback();
     }
+    */
+
+    this.callAllMovedCallbacks();
+
+
+
+    // reset the callback lists
+    this.movingCallbacks = [];
+    this.movedCallbacks = [];
   }
 }
 
@@ -1378,7 +1489,7 @@ VolumeNavigator.prototype.onMouseMove = function(event){
     switch (this.objectGrabed.translationOrRotation) {
       // this is a tranlation...
       case 0:
-        if(this.objectGrabed.shift){ // shift key is hold
+        if(this.objectGrabed.axis[0] == 1){ // shift key was hold at the clicking
           this.mouseMoveTranslationSamePlane();
         }else{ // regular case
           this.mouseMoveTranslation();
@@ -1396,9 +1507,17 @@ VolumeNavigator.prototype.onMouseMove = function(event){
     this.update();
     this.objectGrabed.previousMouse.copy(this.mouse);
 
+
+    this.callAllMovingCallbacks();
+    //this.test1();
+
+
+    /*
     if(this.onChangeCallback){
       this.onChangeCallback();
     }
+    */
+
 
   }
 }
@@ -1486,8 +1605,6 @@ VolumeNavigator.prototype.mouseMoveTranslationSamePlane = function(event){
     }
   }
 }
-
-
 
 
 /*
@@ -1617,13 +1734,33 @@ VolumeNavigator.prototype.updateAxisRaycaster = function(){
     if(objectName == "xCircle"){
       this.objectGrabed.axis = [1, 0, 0];
       this.objectGrabed.translationOrRotation = 1;
+      this.addMovingCallbacks("onOrbitingX");
+      this.addMovedCallbacks("onOrbitedX");
+
     }else if (objectName == "yCircle"){
       this.objectGrabed.axis = [0, 1, 0];
       this.objectGrabed.translationOrRotation = 1;
+      this.addMovingCallbacks("onOrbitingY");
+      this.addMovedCallbacks("onOrbitedY");
+
     }else if (objectName == "zCircle"){
       this.objectGrabed.axis = [0, 0, 1];
       this.objectGrabed.translationOrRotation = 1;
+      this.addMovingCallbacks("onOrbitingZ");
+      this.addMovedCallbacks("onOrbitedZ");
+
     }else if (objectName == "normalArrow"){
+      if(this.objectGrabed.shift){
+        this.objectGrabed.axis = [1, 1, 1]; // just used that as a flag, not actual axis!
+        this.addMovingCallbacks("onMovingAlongOrthoU");
+        this.addMovingCallbacks("onMovingAlongOrthoV");
+        this.addMovedCallbacks("onMovedAlongOrthoV");
+        this.addMovedCallbacks("onMovedAlongOrthoU");
+      }else{
+        this.objectGrabed.axis = [0, 0, 0]; // just used that as a flag, not actual axis!
+        this.addMovingCallbacks("onMovingAlongNormal");
+        this.addMovedCallbacks("onMovedAlongNormal");
+      }
       this.objectGrabed.translationOrRotation = 0;
     }
   }

@@ -103,20 +103,6 @@ https://aerotwist.com/tutorials/getting-started-with-three-js/
   // creating a VolumeNavigator instance
   var vn = new VolumeNavigator(outerBoxOptions, innerBoxOptions, "container");
 
-  /*
-  // optional: this callback is called when a slider is moving (mouse down)
-  vn.setOnChangeCallback(function(){
-    console.log("change!");
-  });
-  */
-
-  /*
-  // optional: this callback is called when a slider is released (mouse up)
-  vn.setOnFinishChangeCallback(function(){
-    console.log("change finish!");
-  });
-  */
-
   // optional: add a button at the bottom of dat.gui with its associated callback.
   // originally for caching the current slice.
   //vn.buildGuiButton("Cache current slice", function(){
@@ -145,6 +131,73 @@ https://aerotwist.com/tutorials/getting-started-with-three-js/
 
   // optional: define the plane center point (updates the plane equation)
   //vn.setPlanePoint([10, 10, 10]);
+
+
+  /**** CALLBACKS WHILE MOVING ****/
+
+  // when spining the x axis
+  vn.setCallback("onOrbitingX", function(){
+    console.log("orbiting on X...");
+  });
+
+  // when spining the y axis
+  vn.setCallback("onOrbitingY", function(){
+    console.log("orbiting on Y...");
+  });
+
+  // when spining the z axis
+  vn.setCallback("onOrbitingZ", function(){
+    console.log("orbiting on Z...");
+  });
+
+  // when moving along normal
+  vn.setCallback("onMovingAlongNormal", function(){
+    console.log("moving along normal...");
+  });
+
+  // when moving along the ortho plane U
+  vn.setCallback("onMovingAlongOrthoU", function(){
+    console.log("moving along the plane ortho U...");
+  });
+
+  // when moving along the ortho plane V
+  vn.setCallback("onMovingAlongOrthoV", function(){
+    console.log("moving along the plane ortho V...");
+  });
+
+
+  /**** CALLBACKS WHEN DONE MOVING ****/
+
+  // when spining the x axis
+  vn.setCallback("onOrbitedX", function(){
+    console.log("done orbiting on X.");
+  });
+
+  // when spining the y axis
+  vn.setCallback("onOrbitedY", function(){
+    console.log("done orbiting on Y.");
+  });
+
+  // when spining the z axis
+  vn.setCallback("onOrbitedZ", function(){
+    console.log("done orbiting on Z.");
+  });
+
+  // when moving along normal
+  vn.setCallback("onMovedAlongNormal", function(){
+    console.log("done moving along normal.");
+  });
+
+  // when moving along the ortho axis U
+  vn.setCallback("onMovedAlongOrthoU", function(){
+    console.log("done moving along ortho U.");
+  });
+
+  // when moving along the ortho axis V
+  vn.setCallback("onMovedAlongOrthoV", function(){
+    console.log("done moving along ortho V.");
+  });
+
   </script>
 
 </body>
