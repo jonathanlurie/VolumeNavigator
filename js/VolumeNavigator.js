@@ -1917,9 +1917,13 @@ VolumeNavigator.prototype.tiltGimbalU = function(){
   this.rotateGimbal(Math.PI/2., 0);
   this.update();
 
+  this.callCallback("onOrbitedX");
+
+  /*
   if(this.onFinishChangeCallback){
       this.onFinishChangeCallback();
   }
+  */
 }
 
 
@@ -1935,9 +1939,13 @@ VolumeNavigator.prototype.tiltGimbalV = function(){
   this.rotateGimbal(Math.PI/2., 1);
   this.update();
 
+  this.callCallback("onOrbitedY");
+
+  /*
   if(this.onFinishChangeCallback){
       this.onFinishChangeCallback();
   }
+  */
 }
 
 
@@ -1953,9 +1961,13 @@ VolumeNavigator.prototype.moveAlongNormal = function(factor){
 
   this.update();
 
+  this.callCallback("onMovedAlongNormal");
+
+  /*
   if(this.onFinishChangeCallback){
       this.onFinishChangeCallback();
   }
+  */
 }
 
 
@@ -1970,9 +1982,13 @@ VolumeNavigator.prototype.moveAlongOrthoU = function(factor){
   this.moveGimbalCenterRelative(resultVector);
   this.update();
 
+  this.callCallback("onMovedAlongOrthoU");
+
+  /*
   if(this.onFinishChangeCallback){
       this.onFinishChangeCallback();
   }
+  */
 }
 
 
@@ -1987,7 +2003,10 @@ VolumeNavigator.prototype.moveAlongOrthoV = function(factor){
   this.moveGimbalCenterRelative(resultVector);
   this.update();
 
+  this.callCallback("onMovedAlongOrthoV");
+  /*
   if(this.onFinishChangeCallback){
       this.onFinishChangeCallback();
   }
+  */
 }
