@@ -132,6 +132,21 @@ VolumeNavigator.prototype.initKeyEvents = function(){
   window.addEventListener( 'mousemove', this.onMouseMove.bind(this), false );
   window.addEventListener( 'keyup', this.onKeyUp.bind(this), false );
   window.addEventListener( 'keydown', this.onKeyDown.bind(this), false );
+
+  window.addEventListener( 'resize', this.onWindowResize.bind(this), false );
+
+}
+
+
+/*
+  Keepd the proportion of the window when the window is resized.
+*/
+VolumeNavigator.prototype.onWindowResize = function(){
+  this.sceneOptions.width = this.domContainer.clientWidth;
+  this.sceneOptions.height = this.domContainer.clientHeight;
+  this.camera.aspect = this.sceneOptions.width / this.sceneOptions.height;
+  this.camera.updateProjectionMatrix();
+  this.renderer.setSize( this.sceneOptions.width, this.sceneOptions.height );
 }
 
 
