@@ -47,6 +47,8 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
       d: 0
   }
 
+  this.originalQuaternion = null;
+
   // array of intersection points between the plane and the volume
   this.planePolygon = null;
 
@@ -132,9 +134,7 @@ VolumeNavigator.prototype.initKeyEvents = function(){
   window.addEventListener( 'mousemove', this.onMouseMove.bind(this), false );
   window.addEventListener( 'keyup', this.onKeyUp.bind(this), false );
   window.addEventListener( 'keydown', this.onKeyDown.bind(this), false );
-
   window.addEventListener( 'resize', this.onWindowResize.bind(this), false );
-
 }
 
 
@@ -748,6 +748,9 @@ VolumeNavigator.prototype.setPlanePoint = function(p){
 
     // updating equation and its display on dat.gui
     this.update();
+
+    // call some impacted callback
+    this.callThreeMovedAlongCallbacks();
   }else {
     console.log("ERROR: The point requested is not in the volume");
   }
@@ -755,24 +758,53 @@ VolumeNavigator.prototype.setPlanePoint = function(p){
 
 
 /*
-  Change the orientation of the plane so that its normal vector is v.
-  The center of rotation is the center of the red square that represents the plane
-  (not the origin)
+  Change the orientation of the gimbal so that the reference normal vector (in Z)
+  becomes the _vector_ in argument.
+  Note that the center of the gimbal is not changed.
   arg:
     vector: Array [x, y, z] - a normal vector (normalized or not)
 */
 VolumeNavigator.prototype.setPlaneNormal = function(vector){
-  // compute the normal between the vector in argument and
-  // the current gimbal normal (on disc z). This will give us the rotation axis
 
-  // 1- make sure "vector" is normalized
-  var vector2 = new THREE.Vector3(vector[0], vector[1], vector[2]).normalize();
-  var gimbalNormal = new THREE.Vector3().copy(this.getGimbalNormalVector(2));
-  var rotationAxis = new THREE.Vector3().crossVectors( gimbalNormal, vector2).normalize();
-  var angle = Math.acos(vector2.dot(gimbalNormal));
+  this.setGimbalReferenceNormal(vector);
 
-  this.gimbal.rotateOnAxis(rotationAxis, angle);
-  this.update();
+  // call some impacted callback
+  this.callThreeMovedAlongCallbacks();
+}
+
+
+
+/*
+  All at once! Changing the center and the reference normal vector of the gimbal.
+  Note: the center of the gimbal is a point of the plane
+  (but not the center of the plane, right? this wouldn't make sense, a plane is infinite!)
+  Args:
+    normal: Array [x, y, z] - Normal vector, will be transformed into a unit vector
+    point: Array [x, y, z] - a point in the space. must be in the boundaries of the volume.
+*/
+VolumeNavigator.prototype.setPlaneNormalAndPoint = function(normal, point){
+  if(this._isWithin(point)){
+    this.setGimbalCenter(point);
+    this.setGimbalReferenceNormal(normal);
+
+    // updating equation and its display on dat.gui
+    this.update();
+
+    // call some impacted callback
+    this.callThreeMovedAlongCallbacks();
+  }else {
+    console.log("ERROR: The point requested is not in the volume");
+  }
+}
+
+
+/*
+  call the callback related to ending the translation of the gimbal in the 3D
+*/
+VolumeNavigator.prototype.callThreeMovedAlongCallbacks = function(){
+  this.callCallback("onMovedAlongNormal");
+  this.callCallback("onMovedAlongOrthoU");
+  this.callCallback("onMovedAlongOrthoV");
 }
 
 
@@ -1367,6 +1399,8 @@ VolumeNavigator.prototype.initGimbal = function(){
   this.gimbal.add( sphere );
   */
 
+  this.originalQuaternion = new THREE.Quaternion().copy(this.gimbal.quaternion);
+
 }
 
 
@@ -1710,6 +1744,7 @@ VolumeNavigator.prototype.getGimbalQuaternion = function(){
 */
 VolumeNavigator.prototype.setGimbalQuaternion = function(q){
   this.gimbal.quaternion.copy(q);
+  this.update();
 }
 
 
@@ -1721,6 +1756,16 @@ VolumeNavigator.prototype.setGimbalQuaternionElem = function(x, y, z, w){
   this.gimbal.quaternion.y = y;
   this.gimbal.quaternion.z = z;
   this.gimbal.quaternion.w = w;
+
+  this.update();
+}
+
+
+/*
+  reinit the gimbal rotation to how it was at the very begining.
+*/
+VolumeNavigator.prototype.restoreOriginalQuaternion = function(){
+  this.setGimbalQuaternion(this.originalQuaternion);
 }
 
 
@@ -1808,7 +1853,7 @@ VolumeNavigator.prototype.saveOrbitData = function(){
 
 
 /*
-  Restore the viez that was saved before.
+  Restore the view that was saved before.
   This behavior is supposed to be built in THREE OrbitControl, but it does not work.
 */
 VolumeNavigator.prototype.restoreOrbitData = function(){
@@ -1861,10 +1906,8 @@ VolumeNavigator.prototype.placeGimbalAtPolygonCenter = function(){
 
   this.setGimbalCenter( this.getPolygonCenter() );
 
-  if(this.onFinishChangeCallback){
-      this.onFinishChangeCallback();
-  }
-
+  this.callCallback("onMovedAlongOrthoU");
+  this.callCallback("onMovedAlongOrthoV");
 }
 
 
@@ -1879,6 +1922,29 @@ VolumeNavigator.prototype.setGimbalCenter = function(coord){
   this.gimbal.position.x = coord[0];
   this.gimbal.position.y = coord[1];
   this.gimbal.position.z = coord[2];
+}
+
+
+/*
+  Change the gimbal normal, will be noralize.
+  Args:
+    vector: Array [x, y, z] - normal vector
+*/
+VolumeNavigator.prototype.setGimbalReferenceNormal = function(vector){
+  // first, we restore the orinal quaternion to make sure we are performing
+  // a rotation in the absolute system
+  this.restoreOriginalQuaternion();
+
+  // 1- make sure "vector" is normalized
+  var futureNormal = new THREE.Vector3(vector[0], vector[1], vector[2]).normalize();
+  var gimbalNormal = new THREE.Vector3().copy(this.getGimbalNormalVector(2));
+
+  var newNormalQuaternion = new THREE.Quaternion().setFromUnitVectors(
+    gimbalNormal, // from this...
+    futureNormal // ...to that
+  );
+
+  this.setGimbalQuaternion(newNormalQuaternion); // update() is called there
 }
 
 
