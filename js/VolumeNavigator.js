@@ -2007,22 +2007,35 @@ VolumeNavigator.prototype.setGimbalReferenceNormal = function(vector){
 
 
 
-VolumeNavigator.prototype.setGimbalAbsoluteAnglesDegree = function(x, y, z){
-  // first, we restore the orinal quaternion to make sure we are performing
-  // a rotation in the absolute system
-  this.restoreOriginalQuaternion(false);
+/*
+  Easier to access than rotateGimbal because it updates and call the right callbacks
+*/
+VolumeNavigator.prototype.rotateDegreeAndUpdate = function(angle, axis){
 
-  this.rotateGimbal(x * Math.PI/180., 0);
-
-  this.rotateGimbal(y * Math.PI/180., 1);
-
-  this.rotateGimbal(z * Math.PI/180., 2);
+  this.rotateGimbal(angle * Math.PI/180., axis);
 
   // updating equation and its display on dat.gui
   this.update();
 
   // call some impacted callback
   this.callThreeMovedAlongCallbacks();
+
+  switch (axis) {
+    case 0:
+      this.callCallback("onOrbitedX");
+      break;
+
+    case 1:
+      this.callCallback("onOrbitedY");
+      break;
+
+    case 2:
+      this.callCallback("onOrbitedZ");
+      break;
+
+    default:;
+
+  }
 }
 
 
