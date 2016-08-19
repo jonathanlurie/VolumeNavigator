@@ -48,6 +48,7 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
   }
 
   this.originalQuaternion = null;
+  this.savedQuaternions = {};
 
   // array of intersection points between the plane and the volume
   this.planePolygon = null;
@@ -1400,7 +1401,62 @@ VolumeNavigator.prototype.initGimbal = function(){
   */
 
   this.originalQuaternion = new THREE.Quaternion().copy(this.gimbal.quaternion);
+  this.saveQuaternion("_original_", true, "The first quaternion");
 
+}
+
+
+/*
+  Add the current quaternion to the list.
+  Args:
+    name: String - name given to this q, useful to retrieve it (mandatory)
+    replace: bool - if true, replace when name already in the list (mandatory)
+    description: String - optional
+*/
+VolumeNavigator.prototype.saveQuaternion = function(name, replace, description){
+  if(!name){
+    console.warn("Name is mandatory when saving a quaternion.");
+    return;
+  }
+
+  var extandedQuaternion = {
+    quat: new THREE.Quaternion().copy(this.gimbal.quaternion),
+    name: name,
+    desc: description,
+    date: new Date()  // now
+  }
+
+  if (!(name in this.savedQuaternions) || replace){
+    this.savedQuaternions[name] = extandedQuaternion;
+    console.log("quaternions saved under the name " + name);
+  }else{
+    console.warn("The quaternion " + name + " is already in the list.");
+  }
+}
+
+
+/*
+  Restore/apply a quaternion that was previously saved (and call update() ).
+  Args:
+    name: String - unique identidfier of the quaternion
+    exeCallbacks: bool - if true, execute the callbacks
+
+*/
+VolumeNavigator.prototype.restoreQuaternion = function(name, exeCallbacks){
+  if (name in this.savedQuaternions){
+    this.setGimbalQuaternion(this.savedQuaternions[name].quat);
+    if(exeCallbacks){
+      this.callThreeMovedAlongCallbacks();
+    }
+  }
+}
+
+
+/*
+  Return the list of all the saved quaternions list
+*/
+VolumeNavigator.prototype.getSavedQuaternionsNameList = function(){
+  return Object.keys(this.savedQuaternions);
 }
 
 
@@ -1763,9 +1819,11 @@ VolumeNavigator.prototype.setGimbalQuaternionElem = function(x, y, z, w){
 
 /*
   reinit the gimbal rotation to how it was at the very begining.
+  Args:
+    callCallback: bool - if true, calls the callbacks
 */
-VolumeNavigator.prototype.restoreOriginalQuaternion = function(){
-  this.setGimbalQuaternion(this.originalQuaternion);
+VolumeNavigator.prototype.restoreOriginalQuaternion = function(callCallback){
+  this.restoreQuaternion("_original_", callCallback);
 }
 
 
@@ -1933,7 +1991,7 @@ VolumeNavigator.prototype.setGimbalCenter = function(coord){
 VolumeNavigator.prototype.setGimbalReferenceNormal = function(vector){
   // first, we restore the orinal quaternion to make sure we are performing
   // a rotation in the absolute system
-  this.restoreOriginalQuaternion();
+  this.restoreOriginalQuaternion(false);
 
   // 1- make sure "vector" is normalized
   var futureNormal = new THREE.Vector3(vector[0], vector[1], vector[2]).normalize();
@@ -1945,6 +2003,26 @@ VolumeNavigator.prototype.setGimbalReferenceNormal = function(vector){
   );
 
   this.setGimbalQuaternion(newNormalQuaternion); // update() is called there
+}
+
+
+
+VolumeNavigator.prototype.setGimbalAbsoluteAnglesDegree = function(x, y, z){
+  // first, we restore the orinal quaternion to make sure we are performing
+  // a rotation in the absolute system
+  this.restoreOriginalQuaternion(false);
+
+  this.rotateGimbal(x * Math.PI/180., 0);
+
+  this.rotateGimbal(y * Math.PI/180., 1);
+
+  this.rotateGimbal(z * Math.PI/180., 2);
+
+  // updating equation and its display on dat.gui
+  this.update();
+
+  // call some impacted callback
+  this.callThreeMovedAlongCallbacks();
 }
 
 
@@ -1999,12 +2077,6 @@ VolumeNavigator.prototype.tiltGimbalU = function(){
   this.update();
 
   this.callCallback("onOrbitedX");
-
-  /*
-  if(this.onFinishChangeCallback){
-      this.onFinishChangeCallback();
-  }
-  */
 }
 
 
@@ -2021,12 +2093,6 @@ VolumeNavigator.prototype.tiltGimbalV = function(){
   this.update();
 
   this.callCallback("onOrbitedY");
-
-  /*
-  if(this.onFinishChangeCallback){
-      this.onFinishChangeCallback();
-  }
-  */
 }
 
 
@@ -2039,16 +2105,9 @@ VolumeNavigator.prototype.tiltGimbalV = function(){
 VolumeNavigator.prototype.moveAlongNormal = function(factor){
   var resultVector = this.getGimbalNormalVector(2).multiplyScalar(factor);
   this.moveGimbalCenterRelative(resultVector);
-
   this.update();
 
   this.callCallback("onMovedAlongNormal");
-
-  /*
-  if(this.onFinishChangeCallback){
-      this.onFinishChangeCallback();
-  }
-  */
 }
 
 
@@ -2064,12 +2123,6 @@ VolumeNavigator.prototype.moveAlongOrthoU = function(factor){
   this.update();
 
   this.callCallback("onMovedAlongOrthoU");
-
-  /*
-  if(this.onFinishChangeCallback){
-      this.onFinishChangeCallback();
-  }
-  */
 }
 
 
@@ -2085,9 +2138,4 @@ VolumeNavigator.prototype.moveAlongOrthoV = function(factor){
   this.update();
 
   this.callCallback("onMovedAlongOrthoV");
-  /*
-  if(this.onFinishChangeCallback){
-      this.onFinishChangeCallback();
-  }
-  */
 }
