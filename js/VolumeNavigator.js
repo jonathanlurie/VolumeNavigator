@@ -1472,11 +1472,9 @@ VolumeNavigator.prototype.saveGimbalSettings = function(name, replace, descripti
 */
 VolumeNavigator.prototype.restoreGimbalSettings = function(name, exeCallbacks){
   if (name in this.savedGimbalSettings){
-    this.setGimbalQuaternion(this.savedGimbalSettings[name].quat);
     this.setGimbalCenterV(this.savedGimbalSettings[name].center);
-
-    this.update();
-
+    this.setGimbalQuaternion(this.savedGimbalSettings[name].quat);
+    
     if(exeCallbacks){
       this.callThreeMovedAlongCallbacks();
     }
