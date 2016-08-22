@@ -843,13 +843,7 @@ VolumeNavigator.prototype.setPlaneNormalAndPoint = function(normal, point){
   to be called from the outside (a controller)
 */
 VolumeNavigator.prototype.planeFromTwoPoints = function(p1, p2){
-  console.log("p1");
-  console.log(p1);
-  console.log("p2");
-  console.log(p2);
-
   if(p1.length == 3 && p2.length == 3){
-
     var p1p2 = [
         p2[0] - p1[0],
         p2[1] - p1[1],
@@ -857,7 +851,6 @@ VolumeNavigator.prototype.planeFromTwoPoints = function(p1, p2){
     ];
 
     var normal = this.vectorTools.normalize(p1p2);
-
     this.setPlaneNormalAndPoint(normal, p1);
   }
 }
