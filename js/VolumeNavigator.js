@@ -843,7 +843,7 @@ VolumeNavigator.prototype.setPlaneNormalAndPoint = function(normal, point){
   to be called from the outside (a controller)
 */
 VolumeNavigator.prototype.planeFromTwoPoints = function(p1, p2){
-  if(p1.length == 3 && p2.length == 3){
+  if(p1 && p2 && p1.length == 3 && p2.length == 3){
     var p1p2 = [
         p2[0] - p1[0],
         p2[1] - p1[1],
