@@ -284,6 +284,14 @@ VolumeNavigator.prototype.onKeyUp = function(event){
   console.log("up: " + event.keyCode);
 
   switch ( event.keyCode ) {
+    // shift
+    case 16:
+      event.preventDefault();
+      event.stopPropagation();
+      this.objectGrabed.shift = false;
+      break;
+
+    /*
     // space bar
     case 32:
       event.preventDefault();
@@ -303,13 +311,6 @@ VolumeNavigator.prototype.onKeyUp = function(event){
       event.preventDefault();
       event.stopPropagation();
       this.tiltGimbalV();
-      break;
-
-    // shift
-    case 16:
-      event.preventDefault();
-      event.stopPropagation();
-      this.objectGrabed.shift = false;
       break;
 
     // char 'Q', move forward along normal vector
@@ -354,7 +355,7 @@ VolumeNavigator.prototype.onKeyUp = function(event){
       event.stopPropagation();
       this.moveAlongOrthoV( this.objectGrabed.shift? -10 : -1 );
       break;
-
+    */
     default:
   }
 
@@ -1474,7 +1475,7 @@ VolumeNavigator.prototype.restoreGimbalSettings = function(name, exeCallbacks){
   if (name in this.savedGimbalSettings){
     this.setGimbalCenterV(this.savedGimbalSettings[name].center);
     this.setGimbalQuaternion(this.savedGimbalSettings[name].quat);
-    
+
     if(exeCallbacks){
       this.callThreeMovedAlongCallbacks();
     }
@@ -2010,6 +2011,8 @@ VolumeNavigator.prototype.setGimbalCenter = function(coord){
   this.gimbal.position.x = coord[0];
   this.gimbal.position.y = coord[1];
   this.gimbal.position.z = coord[2];
+
+  console.log(this.gimbal.position);
 }
 
 
@@ -2031,7 +2034,7 @@ VolumeNavigator.prototype.setGimbalCenterV = function(v){
 VolumeNavigator.prototype.setGimbalReferenceNormal = function(vector){
   // first, we restore the orinal quaternion to make sure we are performing
   // a rotation in the absolute system
-  this.restoreOriginalGimbalSettings(false);
+  this.setGimbalQuaternion(this.savedGimbalSettings["_original_"].quat);
 
   // 1- make sure "vector" is normalized
   var futureNormal = new THREE.Vector3(vector[0], vector[1], vector[2]).normalize();
