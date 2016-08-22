@@ -59,7 +59,7 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID, gui){
   }
 
   this.originalQuaternion = null;
-  this.savedQuaternions = {};
+  this.savedGimbalSettings = {};
 
   // array of intersection points between the plane and the volume
   this.planePolygon = null;
@@ -585,7 +585,7 @@ VolumeNavigator.prototype.initGui = function(){
   this.buildGuiButton("Tilt gimbal U", this.tiltGimbalU.bind(this));
   this.buildGuiButton("Tilt gimbal V", this.tiltGimbalV.bind(this));
   this.buildGuiButton("Center the gimbal", this.placeGimbalAtPolygonCenter.bind(this));
-  this.buildGuiButton("Restore position", this.restoreOriginalQuaternion.bind(this));
+  this.buildGuiButton("Restore position", this.restoreOriginalGimbalSettings.bind(this));
 
 }
 
@@ -1429,7 +1429,7 @@ VolumeNavigator.prototype.initGimbal = function(){
   */
 
   this.originalQuaternion = new THREE.Quaternion().copy(this.gimbal.quaternion);
-  this.saveQuaternion("_original_", true, "The first quaternion");
+  this.saveGimbalSettings("_original_", true, "The first quaternion");
 
 }
 
@@ -1441,21 +1441,22 @@ VolumeNavigator.prototype.initGimbal = function(){
     replace: bool - if true, replace when name already in the list (mandatory)
     description: String - optional
 */
-VolumeNavigator.prototype.saveQuaternion = function(name, replace, description){
+VolumeNavigator.prototype.saveGimbalSettings = function(name, replace, description){
   if(!name){
     console.warn("Name is mandatory when saving a quaternion.");
     return;
   }
 
-  var extandedQuaternion = {
+  var gimbalSettings = {
     quat: new THREE.Quaternion().copy(this.gimbal.quaternion),
+    center: new THREE.Vector3().copy(this.gimbal.position),
     name: name,
-    desc: description,
+    desc: description, // will most likely remain blank
     date: new Date()  // now
   }
 
-  if (!(name in this.savedQuaternions) || replace){
-    this.savedQuaternions[name] = extandedQuaternion;
+  if (!(name in this.savedGimbalSettings) || replace){
+    this.savedGimbalSettings[name] = gimbalSettings;
     console.log("quaternions saved under the name " + name);
   }else{
     console.warn("The quaternion " + name + " is already in the list.");
@@ -1468,11 +1469,14 @@ VolumeNavigator.prototype.saveQuaternion = function(name, replace, description){
   Args:
     name: String - unique identidfier of the quaternion
     exeCallbacks: bool - if true, execute the callbacks
-
 */
-VolumeNavigator.prototype.restoreQuaternion = function(name, exeCallbacks){
-  if (name in this.savedQuaternions){
-    this.setGimbalQuaternion(this.savedQuaternions[name].quat);
+VolumeNavigator.prototype.restoreGimbalSettings = function(name, exeCallbacks){
+  if (name in this.savedGimbalSettings){
+    this.setGimbalQuaternion(this.savedGimbalSettings[name].quat);
+    this.setGimbalCenterV(this.savedGimbalSettings[name].center);
+
+    this.update();
+
     if(exeCallbacks){
       this.callThreeMovedAlongCallbacks();
     }
@@ -1483,8 +1487,8 @@ VolumeNavigator.prototype.restoreQuaternion = function(name, exeCallbacks){
 /*
   Return the list of all the saved quaternions list
 */
-VolumeNavigator.prototype.getSavedQuaternionsNameList = function(){
-  return Object.keys(this.savedQuaternions);
+VolumeNavigator.prototype.getsavedGimbalSettingsNameList = function(){
+  return Object.keys(this.savedGimbalSettings);
 }
 
 
@@ -1850,8 +1854,8 @@ VolumeNavigator.prototype.setGimbalQuaternionElem = function(x, y, z, w){
   Args:
     callCallback: bool - if true, calls the callbacks
 */
-VolumeNavigator.prototype.restoreOriginalQuaternion = function(callCallback){
-  this.restoreQuaternion("_original_", callCallback);
+VolumeNavigator.prototype.restoreOriginalGimbalSettings = function(callCallback){
+  this.restoreGimbalSettings("_original_", callCallback);
 }
 
 
@@ -2012,6 +2016,16 @@ VolumeNavigator.prototype.setGimbalCenter = function(coord){
 
 
 /*
+  Set the gimbal center to v, almost the same as setGimbalCenter() but uses a
+  THREE js object instead, more convenient for doing it internally.
+  Args:
+    v: THREE.Vector3 - the center, will be (deep) copied.
+*/
+VolumeNavigator.prototype.setGimbalCenterV = function(v){
+  this.gimbal.position.copy(v);
+}
+
+/*
   Change the gimbal normal, will be noralize.
   Args:
     vector: Array [x, y, z] - normal vector
@@ -2019,7 +2033,7 @@ VolumeNavigator.prototype.setGimbalCenter = function(coord){
 VolumeNavigator.prototype.setGimbalReferenceNormal = function(vector){
   // first, we restore the orinal quaternion to make sure we are performing
   // a rotation in the absolute system
-  this.restoreOriginalQuaternion(false);
+  this.restoreOriginalGimbalSettings(false);
 
   // 1- make sure "vector" is normalized
   var futureNormal = new THREE.Vector3(vector[0], vector[1], vector[2]).normalize();
