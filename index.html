@@ -104,7 +104,7 @@ https://aerotwist.com/tutorials/getting-started-with-three-js/
   }
 
   // creating a VolumeNavigator instance
-  var vn = new VolumeNavigator(outerBoxOptions, innerBoxOptions, "container");
+  var vn = new VolumeNavigator(outerBoxOptions, innerBoxOptions, "container", true);
 
   // optional: add a button at the bottom of dat.gui with its associated callback.
   // originally for caching the current slice.
@@ -201,7 +201,6 @@ https://aerotwist.com/tutorials/getting-started-with-three-js/
     console.log("done moving along ortho V.");
   });
 
-  vn.setGimbalAbsoluteAnglesDegree(45, 0, 0);
 
   </script>
 

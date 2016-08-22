@@ -7,7 +7,18 @@
 
   VolumeNavigator is originally a (fancy) widget for MincNavigator.
 */
-var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
+
+/*
+  Constuctor.
+
+  Args:
+    outerBoxOptions: Object - size specification of the volume (mandatory)
+    innerBoxOptions: Object - size of an inner box, can be null
+    divID: String - DOM ID of the div to display the volume
+    gui: bool - true, displau a gui using dat.gui
+*/
+var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID, gui){
+  this.displayGui = gui;
   this.raycaster = new THREE.Raycaster();
   this.raycaster.linePrecision = 5;
   this.mouse = new THREE.Vector2();
@@ -116,7 +127,8 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID){
   this.setupLighting();
 
   // initialize the UI (dat.gui)
-  this.initGui();
+  if(this.displayGui)
+    this.initGui();
 
   // just toi nitialize in order to update dat.gui field
   this.update();
@@ -573,7 +585,7 @@ VolumeNavigator.prototype.initGui = function(){
   this.buildGuiButton("Tilt gimbal U", this.tiltGimbalU.bind(this));
   this.buildGuiButton("Tilt gimbal V", this.tiltGimbalV.bind(this));
   this.buildGuiButton("Center the gimbal", this.placeGimbalAtPolygonCenter.bind(this));
-
+  this.buildGuiButton("Restore position", this.restoreOriginalQuaternion.bind(this));
 
 }
 
@@ -656,6 +668,12 @@ VolumeNavigator.prototype.update = function(){
 
   // draw a sphere at each vertex of the intersection polygon
   this.updateHitPointSpheres();
+
+  // updqte the dat.gui display
+  if(this.displayGui){
+    this.updateGui();
+  }
+
 }
 
 
@@ -675,11 +693,21 @@ VolumeNavigator.prototype.updatePlaneEquation = function(){
   );
 
   var roundFactor = 10000;
-
   this.planeEquation.a = Math.round(eq.x * roundFactor) / roundFactor;
   this.planeEquation.b = Math.round(eq.y * roundFactor) / roundFactor;
   this.planeEquation.c = Math.round(eq.z * roundFactor) / roundFactor;
   this.planeEquation.d = Math.round(eq.w * roundFactor) / roundFactor;
+
+}
+
+
+/*
+  Update the display of the gui
+*/
+VolumeNavigator.prototype.updateGui = function(){
+  var n = this.getPlaneNormal();
+  var p = this.getPlanePoint();
+  var roundFactor = 10000;
 
   // create a nice-to-display equation
   this.guiValue.literalPlaneEquation.literal =
