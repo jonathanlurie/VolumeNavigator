@@ -829,6 +829,41 @@ VolumeNavigator.prototype.setPlaneNormalAndPoint = function(normal, point){
 
 
 /*
+  Instead of setting the plane with one point and one normal vector,
+  we set it with two points. The first will be used as the center of tthe gimbal,
+  and then, as a normal vector, we are using the vector between p1 and p2 (normalized).
+  This feature is convenient for performing AC-PC cross section.
+  Uses setPlaneNormalAndPoint() under the hood.
+
+  Args:
+    p1: Array [x, y, z] - Coords of the first point (AC)
+    p2: Array [x, y, z] - Coords of the second point (PC)
+
+  Note: args are arrays instead of THREE.Vector3 because this method is more likely
+  to be called from the outside (a controller)
+*/
+VolumeNavigator.prototype.planeFromTwoPoints = function(p1, p2){
+  console.log("p1");
+  console.log(p1);
+  console.log("p2");
+  console.log(p2);
+
+  if(p1.length == 3 && p2.length == 3){
+
+    var p1p2 = [
+        p2[0] - p1[0],
+        p2[1] - p1[1],
+        p2[2] - p1[2]
+    ];
+
+    var normal = this.vectorTools.normalize(p1p2);
+
+    this.setPlaneNormalAndPoint(normal, p1);
+  }
+}
+
+
+/*
   call the callback related to ending the translation of the gimbal in the 3D
 */
 VolumeNavigator.prototype.callThreeMovedAlongCallbacks = function(){
