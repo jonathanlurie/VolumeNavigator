@@ -2371,16 +2371,11 @@ VolumeNavigator.prototype.addToHistory = function(description){
     exeCallbacks: bool - if true, the 3 main callbacks will be called in the end
 */
 VolumeNavigator.prototype.gotoToHistory = function(position, exeCallbacks){
-
-
   // abort if out of range
   if(position < 0 || position > this.gimbalSettingHistory.length-1)
     return;
 
   this.historyIterator = position;
-
-  console.log(this.historyIterator);
-
   this.applyGimbalSettings(this.gimbalSettingHistory[this.historyIterator]);
 
   if(exeCallbacks){
