@@ -95,6 +95,10 @@ var VolumeNavigator = function(outerBoxOptions, innerBoxOptions, divID, gui){
     onMovedAlongOrthoV: null
   }
 
+  // manage the history of gimbal settings (this is actually a stack)
+  this.gimbalSettingHistory = [];
+  this.historyIterator = 0
+
   // temporary array of callbacks to call while moving the mouse
   // To be cleaned at mouseup
   this.movingCallbacks = [];
@@ -587,6 +591,8 @@ VolumeNavigator.prototype.initGui = function(){
   this.buildGuiButton("Tilt gimbal V", this.tiltGimbalV.bind(this));
   this.buildGuiButton("Center the gimbal", this.placeGimbalAtPolygonCenter.bind(this));
   this.buildGuiButton("Restore position", this.restoreOriginalGimbalSettings.bind(this));
+  this.buildGuiButton("Undo", this.undo.bind(this));
+  this.buildGuiButton("Redo", this.redo.bind(this));
 
 }
 
@@ -820,6 +826,17 @@ VolumeNavigator.prototype.setPlaneNormalAndPoint = function(normal, point){
     // updating equation and its display on dat.gui
     this.update();
 
+    this.addToHistory(
+      "Setting the normal vector (" +
+      normal[0] + ", " +
+      normal[1] + ", " +
+      normal[2] +
+      ") and the reference point ("+
+      point[0] + ", " +
+      point[1] + ", " +
+      point[2] +
+      ") to define a new plane (parametric)");
+
     // call some impacted callback
     this.callThreeMovedAlongCallbacks();
   }else {
@@ -852,6 +869,18 @@ VolumeNavigator.prototype.planeFromTwoPoints = function(p1, p2){
 
     var normal = this.vectorTools.normalize(p1p2);
     this.setPlaneNormalAndPoint(normal, p1);
+
+    // adding that to history
+    this.addToHistory("Cross section between (" +
+      p1[0] + ", " +
+      p1[1] + ", " +
+      p1[2] + ") and (" +
+      p2[0] + ", " +
+      p2[1] + ", " +
+      p2[2] + ")"
+    );
+
+
   }
 }
 
@@ -1460,6 +1489,39 @@ VolumeNavigator.prototype.initGimbal = function(){
   this.originalQuaternion = new THREE.Quaternion().copy(this.gimbal.quaternion);
   this.saveGimbalSettings("_original_", true, "The first quaternion");
 
+  // adding that to history
+  this.addToHistory("Initial gimbal settings");
+
+}
+
+
+/*
+  Creates a snapshot of the current gimbal settings (deep copy) and returns it.
+  This is used for saving a specific configuration as well as
+  buildind the history stack.
+*/
+VolumeNavigator.prototype.getCurrentGimbalSettings = function(){
+  var gimbalSettings = {
+    quat: new THREE.Quaternion().copy(this.gimbal.quaternion),
+    center: new THREE.Vector3().copy(this.gimbal.position),
+    name: null,
+    desc: null, // will most likely remain blank
+    date: new Date()  // now
+  };
+
+  return gimbalSettings;
+}
+
+
+/*
+  Apply a given gimbal settings object.
+  Does not call any callbacks.
+  Args:
+    gs: object as created by this.getCurrentGimbalSettings()
+*/
+VolumeNavigator.prototype.applyGimbalSettings = function(gs){
+  this.setGimbalCenterV(gs.center);
+  this.setGimbalQuaternion(gs.quat);
 }
 
 
@@ -1476,13 +1538,9 @@ VolumeNavigator.prototype.saveGimbalSettings = function(name, replace, descripti
     return;
   }
 
-  var gimbalSettings = {
-    quat: new THREE.Quaternion().copy(this.gimbal.quaternion),
-    center: new THREE.Vector3().copy(this.gimbal.position),
-    name: name,
-    desc: description, // will most likely remain blank
-    date: new Date()  // now
-  }
+  var gimbalSettings = this.getCurrentGimbalSettings();
+  gimbalSettings.name = name;
+  gimbalSettings.desc = description;
 
   if (!(name in this.savedGimbalSettings) || replace){
     this.savedGimbalSettings[name] = gimbalSettings;
@@ -1501,8 +1559,10 @@ VolumeNavigator.prototype.saveGimbalSettings = function(name, replace, descripti
 */
 VolumeNavigator.prototype.restoreGimbalSettings = function(name, exeCallbacks){
   if (name in this.savedGimbalSettings){
-    this.setGimbalCenterV(this.savedGimbalSettings[name].center);
-    this.setGimbalQuaternion(this.savedGimbalSettings[name].quat);
+
+    this.applyGimbalSettings(this.savedGimbalSettings[name]);
+
+    this.addToHistory("Restoring gimbal settings: " + name);
 
     if(exeCallbacks){
       this.callThreeMovedAlongCallbacks();
@@ -1602,6 +1662,38 @@ VolumeNavigator.prototype.onMouseUp = function(event){
   endGrabPosition.unproject(this.camera);
 
   if(this.objectGrabed.isGrabed){
+
+    switch (this.objectGrabed.translationOrRotation) {
+      // this is a tranlation...
+      case 0:
+        if(this.objectGrabed.axis[0] == 1){ // shift key was hold at the clicking
+          // adding that to history
+          this.addToHistory("Translating manually onto the plane");
+        }else{ // regular case
+          // adding that to history
+          this.addToHistory("Translating manually along the normal vector");
+        }
+        break;
+
+      // this is a rotation...
+      case 1:
+        var axisName = "";
+        if(this.objectGrabed.axis[0] == 1){
+          axisName = "X";
+        }else if(this.objectGrabed.axis[1] == 1){
+          axisName = "Y";
+        }else if(this.objectGrabed.axis[2] == 1){
+          axisName = "Z";
+        }
+
+        // adding that to history
+        this.addToHistory("Grabbing axis " + axisName + " to perfom a manual rotation");
+        break;
+      default:
+
+    }
+
+
     // restore the view we had before grabbing axis arrows (should not be necessary but I suspect a bug in OrbitControlJS)
     this.restoreOrbitData();
 
@@ -2083,6 +2175,8 @@ VolumeNavigator.prototype.setGimbalReferenceNormal = function(vector){
 */
 VolumeNavigator.prototype.rotateDegreeAndUpdate = function(angle, axis){
 
+  var axisName = '';
+
   this.rotateGimbal(angle * Math.PI/180., axis);
 
   // updating equation and its display on dat.gui
@@ -2094,19 +2188,25 @@ VolumeNavigator.prototype.rotateDegreeAndUpdate = function(angle, axis){
   switch (axis) {
     case 0:
       this.callCallback("onOrbitedX");
+      axisName = 'X';
       break;
 
     case 1:
       this.callCallback("onOrbitedY");
+      axisName = 'Y';
       break;
 
     case 2:
       this.callCallback("onOrbitedZ");
+      axisName = 'Z';
       break;
 
     default:;
 
   }
+
+  this.addToHistory("Rotating of " + angle + "° around axis " + axisName + " (parametric)");
+
 }
 
 
@@ -2161,6 +2261,8 @@ VolumeNavigator.prototype.tiltGimbalU = function(){
   this.update();
 
   this.callCallback("onOrbitedX");
+
+  this.addToHistory("Using U orthogonal plane as reference");
 }
 
 
@@ -2177,6 +2279,9 @@ VolumeNavigator.prototype.tiltGimbalV = function(){
   this.update();
 
   this.callCallback("onOrbitedY");
+
+  // adding that to history
+  this.addToHistory("Using V orthogonal plane as reference.");
 }
 
 
@@ -2190,6 +2295,9 @@ VolumeNavigator.prototype.moveAlongNormal = function(factor){
   var resultVector = this.getGimbalNormalVector(2).multiplyScalar(factor);
   this.moveGimbalCenterRelative(resultVector);
   this.update();
+
+  // adding that to history
+  this.addToHistory("Translating along normal vector (factor: " + factor + ")");
 
   this.callCallback("onMovedAlongNormal");
 }
@@ -2206,6 +2314,9 @@ VolumeNavigator.prototype.moveAlongOrthoU = function(factor){
   this.moveGimbalCenterRelative(resultVector);
   this.update();
 
+  // adding that to history
+  this.addToHistory("Translating along U ortho vector (factor: " + factor + ")");
+
   this.callCallback("onMovedAlongOrthoU");
 }
 
@@ -2221,5 +2332,78 @@ VolumeNavigator.prototype.moveAlongOrthoV = function(factor){
   this.moveGimbalCenterRelative(resultVector);
   this.update();
 
+  // adding that to history
+  this.addToHistory("Translating along V ortho vector (factor: " + factor + ")");
+
   this.callCallback("onMovedAlongOrthoV");
+}
+
+
+/*
+  Add a position to the history.
+
+*/
+VolumeNavigator.prototype.addToHistory = function(description){
+
+  // this means we've 'undone' steps and we are about to add new ones (not redo)
+  // so we have to remove the steps that once where "redo-able"
+  var nbItemToRemove = (this.gimbalSettingHistory.length - 1) - this.historyIterator;
+  if(nbItemToRemove > 0){
+    this.gimbalSettingHistory.splice(-nbItemToRemove, nbItemToRemove);
+  }
+
+  // adding this new step
+  var gimbalSettings = this.getCurrentGimbalSettings();
+  gimbalSettings.name = "history"; // not sure it's useful
+  gimbalSettings.desc = description;
+
+  this.gimbalSettingHistory.push(gimbalSettings);
+
+  // the iterator goes points the last element of the stack
+  this.historyIterator = this.gimbalSettingHistory.length - 1;
+}
+
+
+/*
+  Restore the gimbal settings at the given history position.
+  Args:
+    position: int - between 0 and this.gimbalSettingHistory.length-1
+    exeCallbacks: bool - if true, the 3 main callbacks will be called in the end
+*/
+VolumeNavigator.prototype.gotoToHistory = function(position, exeCallbacks){
+
+
+  // abort if out of range
+  if(position < 0 || position > this.gimbalSettingHistory.length-1)
+    return;
+
+  this.historyIterator = position;
+
+  console.log(this.historyIterator);
+
+  this.applyGimbalSettings(this.gimbalSettingHistory[this.historyIterator]);
+
+  if(exeCallbacks){
+    this.callThreeMovedAlongCallbacks();
+  }
+}
+
+
+/*
+  One step rollback using gotoToHistory.
+  Args:
+    exeCallbacks: bool - if true, the 3 main callbacks will be called in the end
+*/
+VolumeNavigator.prototype.undo = function(exeCallbacks){
+  this.gotoToHistory(this.historyIterator - 1, exeCallbacks);
+}
+
+
+/*
+  One step rollforward using gotoToHistory.
+  Args:
+    exeCallbacks: bool - if true, the 3 main callbacks will be called in the end
+*/
+VolumeNavigator.prototype.redo = function(exeCallbacks){
+  this.gotoToHistory(this.historyIterator + 1, exeCallbacks);
 }
